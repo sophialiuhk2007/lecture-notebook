@@ -10140,7 +10140,7 @@ const Ink = {
       }
       if (ctl && k === 'taller') { change('more space', [ctl.id], () => { const ink = Ink.data(inkB(ctl.id)); ink.h = (ink.h || 420) + 260; }); ctl.repaint(); ctl.save(); }
       if (ctl && k === 'done') { stopEdit(); return; }
-      if (ctl && k === 'ai') { openMenu(a, [{ html: '✦ Type out the handwriting' + (inkFixPref() ? ' ✓' : '') + '<small>adds typed notes below, drawing stays; Claude fixes slips and marks each change</small>', fn: () => { lsSet('nb.inkFix', '1'); photoAI(ctl.id, 'transcribe'); } }, { html: '✦ Type it out word for word' + (inkFixPref() ? '' : ' ✓') + '<small>exact transcription, no corrections</small>', fn: () => { lsSet('nb.inkFix', '0'); photoAI(ctl.id, 'transcribe'); } }, { html: '✦ Tidy into a clean diagram<small>adds a neat version below</small>', fn: () => photoAI(ctl.id, 'diagram') }, { html: '✦ Explain this sketch', fn: () => photoAI(ctl.id, 'explain') }]); return; }
+      if (ctl && k === 'ai') { openMenu(a, [...INK_MODES.map(([v, l, h]) => ({ html: '✦ ' + l + (inkMode() === v ? ' ✓' : '') + '<small>' + h + ' · typed notes go below, drawing stays</small>', fn: () => { setInkMode(v); photoAI(ctl.id, 'transcribe'); } })), { html: '✦ Tidy into a clean diagram<small>adds a neat version below</small>', fn: () => photoAI(ctl.id, 'diagram') }, { html: '✦ Explain this sketch', fn: () => photoAI(ctl.id, 'explain') }]); return; }
     }
     Ink.syncBars();
   }
@@ -11362,6 +11362,8 @@ function normBlocks(arr, extra) {
     if (/^h[123]$/.test(t)) o.text = o.text.replace(/^\*+|\*+$/g, '');
     if (t === 'box') { o.kind = KINDS[x.kind] ? x.kind : ({ definition: 'def', theorem: 'thm', proposition: 'prop', lemma: 'lem', corollary: 'cor', example: 'ex', exercise: 'pencil', 'try it myself': 'pencil', try: 'pencil', question: 'ask', warning: 'warn', motivation: 'motiv', claim: 'claim', remark: 'rmk', problem: 'prob', solution: 'sol', summary: 'sum', correction: 'fix', intuition: 'intu' })[String(x.kind || '').toLowerCase()] || 'rmk'; if (x.title) o.title = normClaude(String(x.title)); }
     if (t === 'table') { o.rows = Array.isArray(x.rows) ? x.rows.map(r => (Array.isArray(r) ? r : [r]).map(String)) : [['']]; delete o.text; }
+    // her margin notes from handwriting, typed up as comments on this block (with Claude's reply when there is one)
+    if (Array.isArray(x.notes)) { const cs = x.notes.filter(n => n && (n.note || n.text)).map(n => { const c = { id: uid('c'), quote: normClaude(String(n.on || '')).slice(0, 4000), text: normClaude(String(n.note || n.text || '')), who: 'me', created: now() }; const ans = String(n.answer || '').trim(); if (ans) c.replies = [{ id: uid('r'), who: 'claude', text: normClaude(ans), t: now() }]; return c; }); if (cs.length) o.comments = cs; }
     out.push(o);
   }
   return joinSpecs(out);
@@ -11399,7 +11401,13 @@ async function cropBlob(blob, bb) {
 // image or sketch block: transcribe | diagram | explain
 // handwriting → typed text: by default Claude works like a careful TA — transcribes faithfully, then fixes real mistakes and marks
 // every change where it is; "Correct mistakes" off gives a word-for-word transcription (the choice is remembered)
-function inkFixPref() { return lsGet('nb.inkFix') !== '0'; }
+// three ways (Sophia, Nov 13: "clean up my notes and answer my questions and show me how to do the pencil problems", like the
+// "organize my handwritten notes into an amazing PDF" chats): 'study' (default) = clean, organized, corrected notes with her questions
+// answered and her try-it problems worked; 'fix' = faithful transcription with marked corrections; 'exact' = word for word
+function inkMode() { const m = lsGet('nb.inkMode'); return m === 'study' || m === 'fix' || m === 'exact' ? m : (lsGet('nb.inkFix') === '0' ? 'exact' : 'study'); }
+function setInkMode(m) { lsSet('nb.inkMode', m); lsSet('nb.inkFix', m === 'exact' ? '0' : '1'); }
+function inkFixPref() { return inkMode() !== 'exact'; }
+const INK_MODES = [['study', 'Clean up, fix & explain', 'organized study notes: fixes mistakes, fills gaps, answers your questions, works your ✎ problems'], ['fix', 'Type it out, mark fixes', 'keeps your wording; Claude fixes slips and marks each change'], ['exact', 'Word for word', 'exact transcription, no corrections']];
 // sample() failures (runtime contract 0.2.96): pictures refused → `images_unavailable` / `image_rejected` (older hosts: `bad_request`);
 // codes after which a long run must stop (asking again won't help now); viewer-facing words for each
 const noImgErr = e => !!(e && /^(images_unavailable|image_rejected|bad_request)$/.test(e.code));
@@ -11431,7 +11439,7 @@ const INK_KINDS = 'Lay the notes out with the notebook\'s own block types, in re
   '  claim = a claim stated inside an argument and then justified.\n' +
   '  proof = a proof ("Pf", ending in □ or QED); right after the statement it proves.\n' +
   '  ex = a worked example.\n' +
-  '  pencil = "Try it myself": something she marked to work out herself (a ✎ / pencil sign, "try", "exercise", "check this yourself", "do this"); the task only — never add a solution.\n' +
+  '  pencil = "Try it myself": something she marked to work out herself (a ✎ / pencil sign, "pencil problem", "try", "exercise", "check this yourself", "do this"); the box holds the task (whether a worked solution follows depends on the rules above).\n' +
   '  prob / sol = a problem (homework, exam, practice question) and its solution.\n' +
   '  rmk = a remark that stands on its own; a short aside about one line belongs in that line\'s text instead.\n' +
   '  intu = intuition, a picture, "why it makes sense".\n' +
@@ -11442,6 +11450,8 @@ const INK_KINDS = 'Lay the notes out with the notebook\'s own block types, in re
   '  fix = only for explaining a correction (see the correction rules).\n' +
   'Use a box only for what she wrote as that kind of thing; plain prose stays a "p".';
 function inkTranscribeRules(fix, plain) {
+  if (fix === 'study') return inkStudyRules(plain);
+  if (fix === 'fix') fix = true; else if (fix === 'exact') fix = false;
   const ink = '\nSide notes are part of her notes, not separate items: writing in the margins, in a different colour, in a bubble or joined by an arrow goes into the main text where it belongs — into the sentence, step, list or box its arrow or position points at (as a clause, a sentence right after it, or the box kind that fits it). Never label anything "margin note", "side note", "aside" or "(in the margin)", and never write it as a "> " quote line.';
   if (!fix) return 'Transcribe exactly what is written: keep their wording, order, notation and any mistakes — do not correct, add, complete or solve anything. Unreadable bits: [?].' + ink;
   return 'Work like a careful TA, not just a transcriber:\n' +
@@ -11450,6 +11460,20 @@ function inkTranscribeRules(fix, plain) {
     (plain ? ' If a correction needs a reason, add one short line "Note: …" right after it.' : ' If a correction needs a reason, put right after that block a {"type":"box","kind":"fix","title":"Correction","text":"…"} box (one or two sentences: what was wrong and why).') + '\n' +
     '3. Fill in a skipped step only when the argument is wrong or can\'t be followed without it; write it as ⟦added: the step⟧.\n' +
     '4. Don\'t touch correct work, wording or notation, and don\'t add new material. If you can\'t tell a slip from hard-to-read handwriting, keep their version and put ⟦check: what is unclear⟧ right after it. Unreadable bits: [?].';
+}
+function inkStudyRules(plain) {
+  const box = (k, t) => plain ? 'a paragraph starting "' + t + ':"' : 'a {"type":"box","kind":"' + k + '","title":"' + t + '"} box';
+  return 'Make these into the clean, well-organized study notes she would want to learn and revise from — NOT a word-for-word transcription. Work like an excellent TA who rewrites a student\'s lecture notes into a polished handout:\n' +
+    '1. Organize and clean up. Keep all of her content and the lecture\'s notation and order of ideas, but write it as clear, complete sentences and well-structured blocks: proper headings, each definition/theorem/proof/example in its own box of the right kind, derivations as aligned math with one step per line. Turn her abbreviations, arrows and fragments into readable statements ("⇒", "s.t.", "wts", half-finished lines). Never write the words "margin note", "side note" or "(in the margin)" anywhere.\n' +
+    '   Her margin notes and side remarks (in the margins, another colour, bubbles, joined by arrows) go where they belong, in whichever of these ways fits each one best:\n' +
+    '   (a) it adds to the content (an extra condition, a step, a reminder of a definition) → weave it into the main text at the spot its arrow or position points to;\n' +
+    '   (b) it is a question or a remark that deserves an answer or explanation → a box right there: an "ask" box holding her question then "*Answer.* …", or an intu / rmk / warn box that explains it;\n' +
+    '   (c) it is a small aside about one specific line (a doubt, a "why?", a cross-reference) → attach it to that block as a margin comment by adding to the block a field "notes":[{"on":"the few words of the block it refers to","note":"what she wrote, cleaned up","answer":"your short reply (verdict first, ≤3 sentences) or \"\" if none is needed"}]; it appears beside the block like her comments, with your reply under it.\n' +
+    '2. Fix it. Presume the lecture is right (a different convention is not a mistake). Wherever her notes are really wrong — a misread or mis-written symbol, wrong sign/index/exponent/bound/constant, an algebra slip, a step that does not follow, a false or incomplete statement (missing hypothesis) — write the correct version, and mark each real mathematical correction as ⟦fix: what she wrote ⟶ the correct version⟧ (just the changed part; never inside $…$ — put the whole formula on both sides) so she can see what changed. Wording, grammar and layout clean-ups need no marker.\n' +
+    '3. Fill gaps. Where a step is skipped, a proof is only sketched, or a statement is left unfinished, add what is needed for it to be complete and correct, marked ⟦added: …⟧ (keep additions short and in the lecture\'s style).\n' +
+    '4. Answer her questions. Anything she asked ("?", "??", "why?", "how?", "ask", a circled or underlined doubt, and the questions in the comment threads below that are still open): keep the question as ' + box('ask', 'Question') + ' where it arose and put a direct, correct answer right after the question inside that same box, starting with "*Answer.*" — verdict or rule first, then at most 4 short steps in the notes\' notation.\n' +
+    '5. Show her how to do the ✎ problems. For every "Try it myself" / pencil problem / exercise she marked, keep the task as ' + box('pencil', 'Try it myself') + ' and follow it immediately with ' + box('sol', 'How to do it') + ': a complete, correct worked solution — the key idea in one line first, then the steps, ending with the answer.\n' +
+    '6. Don\'t pad: no introductions, no summaries of what you did, no new topics beyond what these notes need. Unreadable bits: [?].';
 }
 function inkFixCount(blocks) { let n = 0; for (const x of blocks || []) n += ((String((x && x.text) || '') + JSON.stringify((x && x.rows) || '')).match(/\u27E6\s*(?:fix|corrected)\s*:|\[corrected:/gi) || []).length; return n; }
 // ✎ on a correction marker: keep Claude's version or go back to what was written (one undo step)
@@ -11479,7 +11503,7 @@ async function photoAI(id, mode) {
   const body = slot.querySelector('.aib'); const m = state.docs.get(state.docId) || {};
   const ctx = 'Course: ' + (m.course || 'math/statistics') + '. Notes: ' + (m.title || '') + '.\n' + blockContext(b) + (mode === 'transcribe' ? prevBlocksText(id, 2) : '');
   const P = {
-    transcribe: 'Turn this ' + (b.type === 'image' ? 'photo of a whiteboard / notes' : 'handwritten sketch') + ' into a student\'s typed lecture notes. Put math in $...$ (LaTeX). For a drawing or graph include {"type":"diagram","bbox":[x0,y0,x1,y1]} with the region as fractions of the image (0–1) and a short "caption".\n' + inkTranscribeRules(inkFixPref()) + '\n' + ctx + '\n\n' + INK_KINDS + '\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}',
+    transcribe: 'Turn this ' + (b.type === 'image' ? 'photo of a whiteboard / notes' : 'handwritten sketch') + ' into a student\'s typed lecture notes. Put math in $...$ (LaTeX). For a drawing or graph include {"type":"diagram","bbox":[x0,y0,x1,y1]} with the region as fractions of the image (0–1) and a short "caption".\n' + inkTranscribeRules(inkMode()) + '\n' + ctx + '\n\n' + INK_KINDS + '\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}',
     diagram: 'Redraw the diagram in this image as a clean, simple vector diagram for a student\'s notes (boxes, circles, arrows, labels, axes/curves). Keep the meaning and layout; drop smudges and stray marks.\n' + ctx + '\n\n' + DIAGRAM_SCHEMA + '\nReply with only JSON: {"type":"diagram","height":H,"caption":"one short caption","shapes":[…]}',
     explain: 'Explain what this ' + (b.type === 'image' ? 'board / photo' : 'sketch') + ' shows to the student whose notes it is in: what each part means and why it matters. Under 220 words.\n' + ctx + '\n\n' + FMT
   };
@@ -11705,13 +11729,13 @@ async function convertInkDoc() {
   // first: how Claude should do it (model, and whether to fix mistakes or type it word for word)
   const opt = await new Promise(res => {
     const d = modal('<div class="pdfx cvask"><b>✦ Convert to typed notes</b><p class="hint" style="margin:4px 0 12px">Claude types up ' + (pages.length === 1 ? 'the page' : 'all ' + pages.length + ' pages') + ' into a typed note, linked both ways. Your handwriting stays exactly as it is.</p>' +
-      '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px"><input type="checkbox" data-cv="fix"' + (inkFixPref() ? ' checked' : '') + ' style="margin-top:3px"><span><b>Correct mistakes</b><br><span class="hint">Like a TA: fixes misread symbols, wrong signs or indices, algebra slips and wrong statements, and marks every change with ✎ (point at it to see what you wrote; click to keep or revert). Untick for a word-for-word transcription.</span></span></label>' +
+      '<div style="font-size:13.5px"><b>How</b>' + INK_MODES.map(([v, l, h]) => '<label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="radio" name="cvmode" value="' + v + '"' + (inkMode() === v ? ' checked' : '') + ' style="margin-top:3px"><span><b>' + l + '</b><br><span class="hint">' + h + '</span></span></label>').join('') + '</div>' +
       (hasOld ? '<div style="margin:12px 0 0;font-size:13.5px"><b>You already have a typed version</b> (“' + esc(old.title || '') + '”)<label style="display:flex;gap:8px;margin-top:4px"><input type="radio" name="cvre" value="replace" checked> Replace it — the old one is kept in its version history</label><label style="display:flex;gap:8px;margin-top:2px"><input type="radio" name="cvre" value="copy"> Make a separate copy</label></div>' : '') +
       '<div style="margin:12px 0 4px">' + aiModelPicker() + '</div>' +
       '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" data-x="cancel">Cancel</button><button class="btn go" data-cv="go">Convert</button></div></div>');
     let done = false; const fin = v => { if (done) return; done = true; clearInterval(w); res(v); };
     const w = setInterval(() => { if (!d.isConnected) fin(null); }, 250);
-    d.querySelector('[data-cv="go"]').addEventListener('click', () => { const fix = d.querySelector('[data-cv="fix"]').checked; lsSet('nb.inkFix', fix ? '1' : '0'); const pref = aiModelRead(d); const re = d.querySelector('input[name="cvre"]:checked'); d.remove(); fin({ fix, pref, replace: hasOld && (!re || re.value === 'replace') }); });
+    d.querySelector('[data-cv="go"]').addEventListener('click', () => { const mm = d.querySelector('input[name="cvmode"]:checked'); const fix = mm ? mm.value : inkMode(); setInkMode(fix); const pref = aiModelRead(d); const re = d.querySelector('input[name="cvre"]:checked'); d.remove(); fin({ fix, pref, replace: hasOld && (!re || re.value === 'replace') }); });
     setTimeout(() => { const g = d.querySelector('[data-cv="go"]'); if (g) g.focus(); }, 0);
   });
   if (!opt) return;
@@ -11736,8 +11760,8 @@ async function convertInkDoc() {
         const printed = pk.img && pk.text ? '\nThis page is a printed PDF page' + (pk.src ? ' (' + pk.src + ')' : '') + ' the student wrote on. Its printed text, to help you read it accurately (type up the printed content only where the student\'s writing depends on it, e.g. a problem statement they answer):\n<<<\n' + String(pk.text).slice(0, 2500) + '\n>>>' : '';
         let pj = i - 1; while (pj >= 0 && !(res[pj] && res[pj].blocks)) pj--; const prevText = pj >= 0 ? textOf(res[pj].blocks) : '';
         const prev = prevText ? '\nFor continuity, the previous page was typed up as (don\'t repeat it; continue its numbering, notation and any unfinished sentence or derivation):\n<<<\n' + prevText.slice(-2500) + '\n>>>' : '';
-        const r = await sample('Turn page ' + pn(i) + ' of ' + allPages.length + ' of a student\'s handwritten lecture notes into typed notes.\nCourse: ' + (src.course || 'math/statistics') + '. Notes title: "' + (src.title || '') + '".\n' +
-          'Keep their structure; put math in $...$ (LaTeX); make clear definitions/theorems/propositions/lemmas/claims/proofs/examples/problems/solutions into boxes of that kind and headings into h2 / h3. A label written above an arrow is \\xrightarrow{label}; a multi-line derivation is ONE math block with \\begin{aligned} … \\end{aligned}, one step per line aligned at = (&=). For each drawing, graph or diagram include {"type":"diagram","bbox":[x0,y0,x1,y1],"caption":"…"} with its region as fractions of the page (0–1), in reading order.\n' +
+        const r = await sample('Turn page ' + pn(i) + ' of ' + allPages.length + ' of a student\'s handwritten lecture notes into ' + (opt.fix === 'study' ? 'clean, organized study notes' : 'typed notes') + '.\nCourse: ' + (src.course || 'math/statistics') + '. Notes title: "' + (src.title || '') + '".\n' +
+          (opt.fix === 'study' ? 'Organize it well; put' : 'Keep their structure; put') + ' math in $...$ (LaTeX); make clear definitions/theorems/propositions/lemmas/claims/proofs/examples/problems/solutions into boxes of that kind and headings into h2 / h3. A label written above an arrow is \\xrightarrow{label}; a multi-line derivation is ONE math block with \\begin{aligned} … \\end{aligned}, one step per line aligned at = (&=). For each drawing, graph or diagram include {"type":"diagram","bbox":[x0,y0,x1,y1],"caption":"…"} with its region as fractions of the page (0–1), in reading order.\n' +
           inkTranscribeRules(opt.fix) + printed + inkPageNotes(pages[i]) + prev + '\n\n' + INK_KINDS + '\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}', aiModelOpts(opt.pref, { images: [blob] }));
         const j = parseJSONReply(r.text); const out = normBlocks(j.blocks);
         if (!out.length) throw { message: 'empty', parse: 1 };
@@ -11781,7 +11805,7 @@ async function convertInkDoc() {
       return;
     }
     const all = await build();
-    const nfix = opt.fix ? inkFixCount(all) : 0;
+    const nfix = opt.fix !== 'exact' ? inkFixCount(all) : 0;
     const msg = (bad.length ? 'Typed version made — ' + ok + ' of ' + pages.length + ' pages' : 'Typed version ' + (opt.replace ? 'replaced' : 'created')) + (nfix ? ' · ' + nfix + ' correction' + (nfix > 1 ? 's' : '') + ' marked ✎' : '');
     if (!bad.length) { m.remove(); toast(msg, 'Open it', () => openDoc(nm.id)); return; }
     const why = [...new Set(bad.map(i => res[i] ? cvErr(res[i].err) : 'stopped'))].join('; ');
@@ -15633,7 +15657,7 @@ const Scratch = {
         this.b.ink = { w: 1000, h: 1300, bg: this.b.ink.bg || 'grid', strokes: [], shapes: [] }; this.changed(); this.render($('rbody2'));
         toast('Scratch paper cleared', 'Undo', () => { this.b.ink = old.ink; this.text = old.text; this.changed(); if (Panel.scr) this.render($('rbody2')); }); }
       if (a === 'ins') this.insert(wrap.querySelector('[data-sc="aside"]').checked);
-      if (a === 'conv') openMenu(k, [{ html: '✦ Type it out' + (inkFixPref() ? ' ✓' : '') + '<small>handwriting → typed text (with math); Claude fixes slips and marks each change</small>', fn: () => { lsSet('nb.inkFix', '1'); this.convert('type'); } }, { html: '✦ Type it out word for word' + (inkFixPref() ? '' : ' ✓') + '<small>exact transcription, no corrections</small>', fn: () => { lsSet('nb.inkFix', '0'); this.convert('type'); } }, { html: '✦ Tidy into a diagram<small>replaces the sketch; Undo brings it back</small>', fn: () => this.convert('diagram') }]);
+      if (a === 'conv') openMenu(k, [...INK_MODES.map(([v, l, h]) => ({ html: '✦ ' + l + (inkMode() === v ? ' ✓' : '') + '<small>' + h + '</small>', fn: () => { setInkMode(v); this.convert('type'); } })), { html: '✦ Tidy into a diagram<small>replaces the sketch; Undo brings it back</small>', fn: () => this.convert('diagram') }]);
     });
   },
   z: Math.max(0.5, Math.min(4, +(lsGet('nb.scrz') || 1) || 1)),
@@ -15706,8 +15730,8 @@ const Scratch = {
       const after0 = selIds().pop() || state.order[state.order.length - 1];
       const ctx = 'Course: ' + (m.course || 'math/statistics') + '. Notes: ' + (m.title || '') + '.' + (mode === 'type' && after0 ? prevBlocksText(after0, 2, true) : '');
       if (mode === 'type') {
-        const fix = inkFixPref();
-        const r = await sample('Type up this handwritten scratch work from a student as typed notes, inline math in $...$ (LaTeX). Don\'t solve or continue it. Skip drawings.\n' + inkTranscribeRules(fix) + '\n' + ctx + '\n\n' + INK_KINDS + '\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}', aiModelOpts(aiModelPref(), { images: [blob] }));
+        const fix = inkMode();
+        const r = await sample('Type up this handwritten scratch work from a student as typed notes, inline math in $...$ (LaTeX). ' + (fix === 'study' ? '' : 'Don\'t solve or continue it. ') + 'Skip drawings.\n' + inkTranscribeRules(fix) + '\n' + ctx + '\n\n' + INK_KINDS + '\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}', aiModelOpts(aiModelPref(), { images: [blob] }));
         const tag = { aside: { t: now(), by: 'scratch' } }; let list = null;
         try { const j = parseJSONReply(r.text); if (j && Array.isArray(j.blocks)) list = normBlocks(j.blocks, tag).filter(x => x.type !== 'ink'); } catch (e) {}
         if (!list) { const t = normClaude(String(r.text || '').replace(/^```[a-z]*\s*|\s*```$/g, '').trim()); list = t ? [Object.assign({ type: 'p', text: t }, tag)] : []; } // (an answer that isn't JSON: its text, as before)
