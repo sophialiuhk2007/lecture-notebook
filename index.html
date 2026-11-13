@@ -447,6 +447,8 @@ mark.findhit.cur{background:#FF9F43}
 .drawbox .cbox.cai{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,transparent)}
 .drawbox .cbox.on,.drawbox .cbox.sel{border-style:solid;background:color-mix(in srgb,var(--note) 16%,transparent)}
 .drawbox .cbox.res{opacity:.5}
+.drawbox .cbox.cnext{border-bottom-style:none;border-bottom-left-radius:0;border-bottom-right-radius:0}.drawbox .cbox.cont{border-top-style:none;border-top-left-radius:0;border-top-right-radius:0}
+#cboxlive{position:fixed;z-index:65;border:2px dashed var(--note);border-radius:4px;background:color-mix(in srgb,var(--note) 7%,transparent);pointer-events:none}
 .selbub{position:fixed;z-index:75;display:flex;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:3px}
 .selbub button{border:0;background:transparent;border-radius:6px;padding:4px 9px;font-size:12.5px;cursor:pointer;color:var(--ink);white-space:nowrap}
 .selbub button:hover{background:var(--panel-2)}
@@ -610,7 +612,10 @@ body.inkdoc .blk-page .gut,body.inkdoc .blk-page .tools{display:none}
 /* handwritten notes: zoom + full page */
 body.inkdoc #blocks{height:var(--pvh,70vh);overflow:auto;overscroll-behavior:contain;margin:0 -6px;padding:0 6px;border-radius:4px}
 body.inkdoc .blk-page{width:calc(var(--pz,1) * 100%);margin:0 auto 18px}
+body.inkdoc .cmts{overflow:hidden;overflow:clip;overflow-clip-margin:10px}
+.inkdocbar .fsonly{display:none}body.inkfull .inkdocbar .fsonly{display:contents}
 body.inkfull .body{grid-template-columns:minmax(0,1fr)!important}body.inkfull .side,body.inkfull .cmts,body.inkfull .rpanel{display:none!important}
+body.inkfull header.bar,body.inkfull .tzoom,body.inkfull .showcmts,body.inkfull .ofab{display:none!important}body.inkfull .dtitle{display:none}
 body.inkfull .sheet{padding:8px 12px 16px;gap:0;grid-template-columns:minmax(0,1fr)!important}body.inkfull .paper{padding:8px 12px 40px;border-radius:6px}body.inkfull .dmeta{display:none}body.inkfull .dtitle{font-size:18px;margin-bottom:6px}
 .zgrp{display:inline-flex;align-items:center;gap:0}.zgrp .zl{min-width:52px;padding:0 4px;font-variant-numeric:tabular-nums}
 .inkbar:not([data-tool="hl"]) .sw.hlc{display:none}.inkbar[data-tool="hl"] .sw.inkc{display:none}
@@ -730,6 +735,8 @@ body.rpdrag,body.rpdrag *{cursor:ew-resize!important;user-select:none!important}
 .ritem{display:flex;align-items:center;border-radius:7px}
 .ritem:hover{background:var(--panel-2)}
 .ritem .docitem{flex:1;min-width:0}
+.cvdlg .cvrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0;font:13px var(--f-ui)}.cvdlg .cvrow>span:first-child{width:52px;color:var(--muted);flex:none}.cvdlg .cvrow input[type=number]{width:64px;margin:0}.cvdlg .cvrow label{display:inline-flex;align-items:center;gap:4px}
+.cvcard{position:fixed;right:16px;bottom:16px;z-index:70;width:min(320px,calc(100vw - 32px));background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:10px 12px;font:13px var(--f-ui)}.cvcard .cvst{margin:4px 0 0}
 .ritem .more{border:0;background:transparent;color:var(--muted);cursor:pointer;width:26px;height:26px;border-radius:5px}
 .reader{display:flex;flex-direction:column;min-height:0;flex:1;position:relative}
 .rtool{display:flex;align-items:center;gap:2px;padding:4px 6px;border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -778,6 +785,23 @@ body.rpdrag,body.rpdrag *{cursor:ew-resize!important;user-select:none!important}
 .epbar .ecols{display:inline-flex;gap:4px;align-items:center;margin:0 4px}
 .boxlive{position:fixed;z-index:995;border:1.5px dashed #7c3aed;background:rgba(124,58,237,.06);pointer-events:none;border-radius:2px}
 .annpop .apck{display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0 8px;cursor:pointer;user-select:none}.annpop .apck input{width:15px;height:15px;accent-color:var(--accent)}
+/* PDF readings in the left list, and comments on a PDF (cards like the notes' comments) — Nov 12 */
+.docrow.rdrow .docitem b{font-weight:400}.pdftag{display:inline-block;font:700 9px/1.5 var(--f-ui);letter-spacing:.04em;padding:0 4px;border-radius:3px;background:color-mix(in srgb,#c8322b 13%,transparent);color:#b3261e;margin-right:5px;vertical-align:1px}
+.docrow.rdrow[aria-current="true"] .docitem{background:var(--note-soft)}
+.reader.ep{container-type:inline-size}
+.reader .rvrow{display:flex;flex:1;min-height:0;min-width:0}.reader .rvrow>.rview{flex:1 1 auto;min-width:0}
+.reader .rcmts{flex:0 0 min(300px,40%);min-width:0;overflow-y:auto;overscroll-behavior:contain;border-left:1px solid var(--line);background:var(--desk);padding:8px;display:flex;flex-direction:column;gap:8px}
+.reader .rcmts[hidden]{display:none}
+@container (max-width:560px){.reader .rvrow{flex-direction:column}.reader .rcmts{flex:0 0 auto;max-height:42%;border-left:0;border-top:1px solid var(--line)}}
+.rcmts .pchd{display:flex;align-items:center;gap:6px;font:600 11.5px var(--f-ui);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.rcmts .pchd .grow{flex:1}
+.cmt.pcmt{position:relative;top:auto!important;left:auto;right:auto;transform:none!important;flex:none}
+.cmt.pcmt.ai-p{border-left-color:var(--accent)}
+.cmt.pcmt .pch{display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--muted);margin-bottom:3px}.cmt.pcmt .pch .grow{flex:1}.cmt.pcmt .pch .lnk{font-size:11.5px;padding:0}
+.cmt.pcmt .cq{-webkit-line-clamp:3}
+.cmt.pcmt.hot{box-shadow:0 0 0 2px var(--note),var(--shadow)}
+.cmt.pcmt .cthr{max-height:min(360px,48vh)}
+.annpop.pcpop{padding:0;border:0;background:transparent;box-shadow:none;width:min(380px,calc(100vw - 16px));display:block}.annpop.pcpop>.cmt{margin:0;box-shadow:var(--shadow)}
+.rtool .pcnt{font:600 10.5px var(--f-ui);color:var(--muted);margin-left:2px}
 .eplayer{position:absolute;z-index:6;overflow:hidden;background:var(--panel)}.eplayer .epbox{position:absolute;inset:0}
 .reader.ep .rview{padding:0;overflow:hidden}.reader.ep .rtool{flex-wrap:wrap;gap:3px}
 .rtool .rb{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;font:inherit;font-size:12px;padding:3px 8px;cursor:pointer;white-space:nowrap}.rtool .rb:hover{background:var(--panel-2)}
@@ -6249,7 +6273,7 @@ function renderBlock(b) {
     const sig = sigOf(b);
     if (slot.dataset.sig !== sig || slot.querySelector('.ed')) { slot.innerHTML = '<div class="view">' + viewHtml(b) + '</div>' + backlinksHtml(b); slot.dataset.sig = sig; afterView(el, b); }
   }
-  el.querySelector('.cmtinline').innerHTML = (b.comments || []).filter(c => !c.resolved || state.showResolved).map(c => cmtCard(b, c)).join('');
+  setCmtHtml(el.querySelector('.cmtinline'), (b.comments || []).filter(c => !c.resolved || state.showResolved).map(c => cmtCard(b, c)).join(''));
   markAnchors(el, b);
   return el;
 }
@@ -6713,7 +6737,7 @@ function renderSide() {
             const sc = !q && (state.closed[key] !== undefined ? state.closed[key] : !(curDoc.section === sname && curCourse === g));
             out += '<div class="sec"><div class="shead' + (sc ? ' closed' : '') + '" data-course="' + esc(g) + '" data-sec="' + esc(sname) + '"><span class="tw">▼</span><b>' + esc(sname) + '</b><span class="n">' + sl.length + '</span><button data-sa="new" title="New page in ' + esc(sname) + '" aria-label="New page">+</button><button data-sa="menu" title="Section options" aria-label="Section options">⋯</button></div>' + (sc ? '' : '<div class="secbody">' + sl.map(rowOf).join('') + '</div>') + '</div>';
           }
-          return out;
+          return out + sideReadRows(g, q);
         })()) + '</div>';
     }
     const trash = [...state.docs.values()].filter(d => d.trashed);
@@ -6750,6 +6774,28 @@ function renderSide() {
     host.innerHTML = h;
   }
 }
+// a course's PDF readings in the left list, under its notes (Sophia, Nov 12: "readings should show up in the left panel too");
+// the lists are read once per course and kept here (Panel.saveReadings refreshes them)
+const SideReads = {
+  m: new Map(), busy: new Set(),
+  get(g) {
+    const key = Panel.slug(g === 'No course' ? '' : g);
+    if (Panel._loaded === key && Panel._readsOk) return Panel.readings;
+    if (this.m.has(key)) return this.m.get(key);
+    if (!this.busy.has(key)) { this.busy.add(key);
+      (async () => { let rs = [];
+        try { if (Store.mode === 'db') { const d = await Store.db.doc('courses/' + key).get(); rs = (d.exists && plainData(d).readings) || []; } else rs = JSON.parse(lsGet('nb.read.' + key) || '[]'); } catch (e) {}
+        this.m.set(key, rs); this.busy.delete(key); if (rs.length && state.side === 'docs') renderSide(); })(); }
+    return [];
+  },
+  set(key, rs) { this.m.set(key, rs); if (state.side === 'docs') renderSide(); }
+};
+function sideReadRows(g, q) {
+  const rs = SideReads.get(g).filter(r => r.kind !== 'link' && (!q || (r.title || '').toLowerCase().includes(q))); if (!rs.length) return '';
+  const cur = Panel.reader && Panel.reader.r && Panel.reader.r.id;
+  return rs.map(r => '<div class="docrow rdrow"' + (r.id === cur ? ' aria-current="true"' : '') + '><button class="docitem" data-sread="' + esc(r.id) + '" data-scourse="' + esc(g) + '" title="Open “' + esc(r.title) + '” in the reader"><b><span class="pdftag">PDF</span>' + esc(r.title || 'Reading') + '</b><span>' + (r.pages ? r.pages + ' p.' : '') + '</span></button></div>').join('');
+}
+$('sideBody').addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-sread]'); if (!t) return; e.preventDefault(); e.stopImmediatePropagation(); Panel.openReading(t.dataset.scourse, t.dataset.sread); }, true);
 function fmtShort(s) { if (!s) return ''; const d = new Date(s), n = new Date(); return d.toDateString() === n.toDateString() ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : d.toLocaleDateString(undefined, d.getFullYear() === n.getFullYear() ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: '2-digit' }); }
 function fmtDate(s) { if (!s) return ''; const d = new Date(s); return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 function inlineInput(anchor, value, cb) {
@@ -6918,7 +6964,7 @@ function repOf(c, rk) { const l = repList(c); return l.find(r => r.id === rk) ||
 // ✂ Keep highlights: trim a comment thread down to the parts highlighted in it (in reading order); undoable
 function keepHighlights(b, c) {
   const hl = c.hl || []; if (!hl.length) { toast('Highlight the parts to keep first (select words in the comment)'); return; }
-  const card = document.querySelector('#cmtList .cmt[data-cid="' + c.id + '"]') || document.querySelector('.cmt[data-cid="' + c.id + '"]');
+  const card = (HlBub.card && HlBub.card.isConnected && HlBub.card.dataset.cid === c.id && HlBub.card) || document.querySelector('#cmtList .cmt[data-cid="' + c.id + '"]') || document.querySelector('.cmt[data-cid="' + c.id + '"]');
   const norm = q => String(q || '').replace(/[\u200b\uFEFF]/g, '').replace(/\s+/g, ' ').trim();
   const pieces = (r, box) => { const s = box ? linearOf(box).s : ''; return hl.filter(h => (h.r || '') === r).map(h => ({ q: h.q, col: h.col || 'yellow', at: s ? s.indexOf(norm(h.q)) : 0 })).sort((x, y) => x.at - y.at)
     .filter((x, i, a) => !a.some((o, j) => j !== i && o.q.length > x.q.length && o.q.includes(x.q))); };
@@ -6945,8 +6991,8 @@ function keepHighlights(b, c) {
   repList(c).forEach((r, ri) => { const rk = r.id || 'i' + ri; const box = card && card.querySelector('.rep[data-rk="' + rk + '"] .rb'); const ps = pieces(rk, box);
     if (ps.length) { const nid = r.id || uid('r'); keep.push(Object.assign({}, r, { id: nid, text: assemble(r.text || '', ps, box), kept: true })); ps.forEach(x => newHl.push({ q: x.q, col: x.col, r: nid })); } });
   c.replies = keep; c.hl = newHl;
-  Store.saveBlock(state.docId, b, 0); refreshCmtCards(b);
-  toast('Kept only the highlighted parts', 'Undo', () => { const cc = (b.comments || []).find(x => x.id === c.id); if (!cc) return; cc.text = before.text; cc.replies = before.replies; cc.hl = before.hl; Store.saveBlock(state.docId, b, 0); refreshCmtCards(b); });
+  saveCmtOwner(b); refreshCmtCards(b);
+  toast('Kept only the highlighted parts', 'Undo', () => { const cc = (b.comments || []).find(x => x.id === c.id); if (!cc) return; cc.text = before.text; cc.replies = before.replies; cc.hl = before.hl; saveCmtOwner(b); refreshCmtCards(b); });
 }
 // hide / show all comments (cards, the column and the underlines); remembered
 $('cmtTog').addEventListener('click', () => setCmtsHidden(!document.body.classList.contains('nocmts')));
@@ -6966,10 +7012,22 @@ function renderCmts() {
   const host = $('cmtList'); const items = [];
   for (const b of ordered()) for (const c of (b.comments || [])) if ((!c.resolved || state.showResolved) && !viewHidden(b)) items.push({ b, c });
   const ae = document.activeElement; const foc = ae && ae.matches && ae.matches('.cmt textarea') && host.contains(ae) ? { cid: ae.closest('.cmt').dataset.cid, sel: ae.matches('[data-creply]') ? '[data-creply]' : ae.matches('[data-repedit]') ? '[data-repedit]' : '[data-ctext]', a: ae.selectionStart, b: ae.selectionEnd } : null;
-  host.innerHTML = items.length ? items.map(({ b, c }) => cmtCard(b, c)).join('') : '<div class="empty" style="padding:0">Select text and press 💬 to comment — you can ask Claude right in the comment.</div>';
+  const drawn = setCmtHtml(host, items.length ? items.map(({ b, c }) => cmtCard(b, c)).join('') : '<div class="empty" style="padding:0">Select text and press 💬 to comment — you can ask Claude right in the comment.</div>');
   layoutCmts();
   if (foc && (!state.editingCmt || foc.cid === state.editingCmt)) { const ta = host.querySelector('.cmt[data-cid="' + foc.cid + '"] textarea' + foc.sel); if (ta) { ta.focus(); try { ta.setSelectionRange(foc.a, foc.b); } catch (e) {} } }
-  if (state.editingCmt && !(foc && foc.cid === state.editingCmt)) { const visible = getComputedStyle($('cmts')).display !== 'none'; const ta = (visible ? host : document).querySelector((visible ? '' : '.cmtinline ') + '.cmt.active textarea'); if (ta) ta.focus(); }
+  if (drawn && state.editingCmt && !(foc && foc.cid === state.editingCmt)) { const visible = getComputedStyle($('cmts')).display !== 'none'; const ta = (visible ? host : document).querySelector((visible ? '' : '.cmtinline ') + '.cmt.active textarea'); if (ta) ta.focus(); }
+}
+// a redraw that changes nothing leaves the cards alone while you select (or are about to select) words in them, so the selection survives
+// (Nov 12: clicking out of a block you were typing in redraws everything 150 ms later, which used to wipe a selection being made in a comment)
+let cmtPress = null;
+document.addEventListener('pointerdown', e => { cmtPress = e.target.closest && !e.target.closest('textarea,input,button,select,label') ? e.target.closest('.cmt') : null; }, true);
+['pointerup', 'pointercancel'].forEach(t => document.addEventListener(t, () => { setTimeout(() => { cmtPress = null; }, 0); }, true));
+function setCmtHtml(host, html) {
+  if (host._cmtHtml === html && host.firstChild && host._cmtFirst === host.firstChild) {
+    if (cmtPress && host.contains(cmtPress)) return false;
+    const s = getSelection(); if (s && !s.isCollapsed && s.rangeCount && host.contains(s.anchorNode) && host.contains(s.focusNode)) return false;
+  }
+  host.innerHTML = html; host._cmtHtml = html; host._cmtFirst = host.firstChild; return true;
 }
 function fitCmtUI(root) {
   (root || document).querySelectorAll('.cmt textarea[data-ctext]').forEach(t => { if (!t._fit) { t._fit = 1; t.style.height = 'auto'; t.style.height = Math.min(320, Math.max(52, t.scrollHeight + 2)) + 'px'; } });
@@ -7000,8 +7058,16 @@ function layoutCmts() {
     for (let i = k - 1; i >= 0; i--) top[i] = Math.min(want[i], top[i + 1] - hs[i] - 8);
   }
   let end = 0; cards.forEach((c, i) => { c.style.top = top[i] + 'px'; end = Math.max(end, top[i] + hs[i] + 8); });
-  host.style.height = end + 'px';
+  if (document.body.classList.contains('inkdoc')) inkCmtRoom(host, base, end); else { host.style.height = end + 'px'; if ($('blocks').style.paddingBottom) $('blocks').style.paddingBottom = ''; }
   document.querySelectorAll('.cmta').forEach(x => x.classList.toggle('sel', x.dataset.cid === state.activeCmt));
+}
+// handwritten notes scroll inside their own page viewport: the margin cards follow it and are clipped at its edge (not at a page),
+// and the pages get extra room at the end so a long card next to the last page can still be scrolled fully into view
+function inkCmtRoom(host, base, end) {
+  host.style.height = ''; const bl = $('blocks'); const cur = parseFloat(bl.style.paddingBottom) || 0;
+  const contentEnd = bl.getBoundingClientRect().top - base + bl.scrollHeight - cur - bl.scrollTop;
+  const need = end > contentEnd ? Math.ceil(end - contentEnd) + 24 : 0;
+  if (Math.abs(need - cur) > 2) bl.style.paddingBottom = need ? need + 'px' : '';
 }
 function selectCmt(cid, fromCard) {
   if (state.activeCmt === cid) return; state.activeCmt = cid || null; layoutCmts();
@@ -7303,7 +7369,10 @@ function wrapQuote(root, quote, mk) {
   }
   return true;
 }
-function cmtOfCard(card) { const b = card && state.blocks.get(card.dataset.cb); const c = b && (b.comments || []).find(x => x.id === card.dataset.cid); return [b, c]; }
+function cmtOfCard(card) { if (card && /^pdf:/.test(card.dataset.cb || '')) return typeof Ann !== 'undefined' ? Ann.cmtOf(card.dataset.cid) : [null, null]; // a comment on a PDF reading
+  const b = card && state.blocks.get(card.dataset.cb); const c = b && (b.comments || []).find(x => x.id === card.dataset.cid); return [b, c]; }
+// save a comment's owner: a block of the notes, or (b.pdf) the reading's comments
+function saveCmtOwner(b) { if (b && b.pdf) Ann.save(); else Store.saveBlock(state.docId, b, 0); }
 function paintCmtHl(root) {
   (root || document).querySelectorAll('.cmt').forEach(card => {
     const [, c] = cmtOfCard(card); const hl = (c && c.hl) || []; const sig = JSON.stringify(hl);
@@ -7314,6 +7383,7 @@ function paintCmtHl(root) {
   });
 }
 function refreshCmtCards(b) {
+  if (b && b.pdf) { Ann.renderCmts(); return; }
   const el = $('b-' + b.id); if (el) { el.querySelector('.cmtinline').innerHTML = (b.comments || []).filter(x => !x.resolved || state.showResolved).map(x => cmtCard(b, x)).join(''); markAnchors(el, b); }
   renderCmts();
 }
@@ -7329,7 +7399,7 @@ const HlBub = {
       const k = e.target.closest('[data-hc]'); if (!k) return;
       try {
         if (!this.cid || !this.q) { toast('Select some words in the comment first'); return this.hide(); }
-        const card = document.querySelector('.cmt[data-cid="' + this.cid + '"]'); const [b, c] = cmtOfCard(card);
+        const card = (this.card && this.card.isConnected && this.card) || document.querySelector('.cmt[data-cid="' + this.cid + '"]'); const [b, c] = cmtOfCard(card);
         if (!b || !c) { toast('Couldn’t find that comment — try again'); return this.hide(); }
         if (k.dataset.hc === 'keep') { // the current selection counts as highlighted too
           const r = this.rk || ''; if (!(c.hl || []).some(h => (h.r || '') === r && h.q === this.q)) c.hl = (c.hl || []).concat([{ q: this.q, col: state.hlColor || 'yellow', r }]);
@@ -7337,7 +7407,7 @@ const HlBub = {
         const r = this.rk || '', q = this.q;
         if (k.dataset.hc === 'clear') c.hl = (c.hl || []).filter(h => !((h.r || '') === r && (h.q.includes(q) || q.includes(h.q))));
         else c.hl = (c.hl || []).filter(h => !((h.r || '') === r && h.q === q)).concat([{ q, col: k.dataset.hc, r }]);
-        Store.saveBlock(state.docId, b, 0);
+        saveCmtOwner(b);
         try { getSelection().removeAllRanges(); } catch (er) {}
         this.hide(); refreshCmtCards(b);
         const shown = document.querySelector('.cmt[data-cid="' + this.cid + '"] mark.chl');
@@ -7355,7 +7425,7 @@ const HlBub = {
     const box = (cae && cae.closest('.cmt .cb, .cmt .rb')) || (n && n.closest('.cmt .cb, .cmt .rb'));
     if (!box || !box.contains(sel.focusNode) || !box.contains(sel.anchorNode)) return false;
     const q = selSource(rng).trim(); if (!q) return false;
-    this.cid = box.closest('.cmt').dataset.cid; this.rk = box.matches('.rb') ? box.closest('.rep').dataset.rk : ''; this.q = q; this.box = box;
+    this.cid = box.closest('.cmt').dataset.cid; this.rk = box.matches('.rb') ? box.closest('.rep').dataset.rk : ''; this.q = q; this.box = box; this.card = box.closest('.cmt');
     return true;
   },
   check() {
@@ -7371,9 +7441,10 @@ document.addEventListener('selectionchange', () => { clearTimeout(HlBub.t); HlBu
 document.addEventListener('scroll', () => { clearTimeout(HlBub.t); HlBub.t = setTimeout(() => HlBub.check(), 60); }, true);
 
 // ---------------------------------------------------------------- comments on an area of a drawing / printout page
-function onInkRegion(bid, r) {
+function onInkRegion(bid, r, more) {
   const b = state.blocks.get(bid); if (!b) return;
   const c = { id: uid('c'), quote: '', region: r, text: '', who: 'me', created: now() };
+  if (more && more.length) c.more = more.map(x => ({ b: x.b, region: x.region })); // the rest of the box, on the following page(s)
   b.comments = (b.comments || []).concat([c]); Store.saveBlock(state.docId, b, 0);
   state.editingCmt = c.id; state.activeCmt = c.id;
   refreshCmtCards(b);
@@ -7382,14 +7453,54 @@ function markRegions(el, b) {
   if (!el || !b || !b.ink) return;
   const box = el.querySelector('.drawbox'); if (!box) return;
   box.querySelectorAll('.cbox').forEach(x => x.remove());
-  const W = b.ink.w || 1000, H = b.ink.h || 420;
-  for (const c of b.comments || []) {
-    if (!c.region || (c.resolved && !state.showResolved)) continue; const r = c.region;
-    const d = document.createElement('div'); d.className = 'cmta cbox' + (c.who === 'claude' ? ' cai' : '') + (c.resolved ? ' res' : '') + (state.activeCmt === c.id ? ' sel' : '');
-    d.dataset.cid = c.id; d.dataset.cb = b.id;
+  document.querySelectorAll('.drawbox .cbox[data-cb="' + b.id + '"]').forEach(x => x.remove()); // this page's comments that run on over later pages
+  const put = (bx, ink, c, r, owner, cls) => {
+    const W = ink.w || 1000, H = ink.h || 420;
+    const d = document.createElement('div'); d.className = 'cmta cbox' + (c.who === 'claude' ? ' cai' : '') + (c.resolved ? ' res' : '') + (state.activeCmt === c.id ? ' sel' : '') + (cls || '');
+    d.dataset.cid = c.id; d.dataset.cb = owner;
     d.style.left = (r.x / W * 100) + '%'; d.style.top = (r.y / H * 100) + '%'; d.style.width = (r.w / W * 100) + '%'; d.style.height = (r.h / H * 100) + '%';
-    box.appendChild(d);
+    bx.appendChild(d);
+  };
+  const shown = c => c.region && !(c.resolved && !state.showResolved);
+  for (const c of b.comments || []) {
+    if (!shown(c)) continue; const more = (c.more || []).filter(m => state.blocks.get(m.b));
+    put(box, b.ink, c, c.region, b.id, more.length ? ' cnext' : '');
+    more.forEach((m, i) => { const ob = state.blocks.get(m.b), oe = $('b-' + m.b), obox = oe && oe.querySelector('.drawbox'); if (ob && ob.ink && obox) put(obox, ob.ink, c, m.region, b.id, ' cont' + (i < more.length - 1 ? ' cnext' : '')); });
   }
+  // boxes started on an earlier page that run on onto this one
+  if (b.type === 'page') for (const p of ordered()) { if (p === b || p.type !== 'page' || !p.comments) continue;
+    for (const c of p.comments) if (shown(c) && c.more) { const more = c.more.filter(m => state.blocks.get(m.b)); more.forEach((m, i) => { if (m.b === b.id) put(box, b.ink, c, m.region, p.id, ' cont' + (i < more.length - 1 ? ' cnext' : '')); }); } }
+}
+// area comments on handwritten pages: the box you drag can cross page breaks (split into one piece per page it covers)
+function inkRegionParts(ctl, m, e) {
+  const b = state.blocks.get(ctl.id); if (!b || !b.ink || !ctl.box.isConnected) return null;
+  const r0 = ctl.box.getBoundingClientRect(); const k = r0.width / (b.ink.w || 1000); if (!k) return null;
+  const ax = r0.left + m[0] * k, ay = r0.top + m[1] * k, bx = e && e.clientX != null ? e.clientX : r0.left + m[2] * k, by = e && e.clientY != null ? e.clientY : r0.top + m[3] * k;
+  const L = Math.min(ax, bx), R = Math.max(ax, bx), T = Math.min(ay, by), B = Math.max(ay, by); const out = [];
+  for (const p of ordered()) {
+    if (p.type !== 'page' || !p.ink) continue; const pe = $('b-' + p.id), db = pe && pe.querySelector('.drawbox'); if (!db) continue;
+    const q = db.getBoundingClientRect(); if (q.bottom <= T || q.top >= B || !q.width) continue;
+    const kk = q.width / (p.ink.w || 1000), W = p.ink.w || 1000, H = p.ink.h || 1100;
+    const x0 = Math.max(0, (L - q.left) / kk), x1 = Math.min(W, (R - q.left) / kk), y0 = Math.max(0, (T - q.top) / kk), y1 = Math.min(H, (B - q.top) / kk);
+    if (x1 - x0 < 4 || y1 - y0 < 4) continue;
+    out.push({ b: p.id, region: { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) } });
+  }
+  return out;
+}
+// while dragging an area comment past the page edge: show the whole box, and scroll the pages along when you reach the bottom/top
+function inkRegionLive(ctl, e) {
+  let ov = document.getElementById('cboxlive');
+  if (!ctl) { if (ov) ov.remove(); clearInterval(inkRegionLive.t); inkRegionLive.t = 0; return; }
+  const b = state.blocks.get(ctl.id), m = ctl.marquee; if (!b || !b.ink || !m) return;
+  const r0 = ctl.box.getBoundingClientRect(); const k = r0.width / (b.ink.w || 1000);
+  const ax = r0.left + m[0] * k, ay = r0.top + m[1] * k; const out = e.clientY > r0.bottom || e.clientY < r0.top;
+  if (!out) { if (ov) ov.hidden = true; } else {
+    if (!ov) { ov = document.createElement('div'); ov.id = 'cboxlive'; document.body.appendChild(ov); } ov.hidden = false;
+    Object.assign(ov.style, { left: Math.min(ax, e.clientX) + 'px', top: Math.min(ay, e.clientY) + 'px', width: Math.abs(e.clientX - ax) + 'px', height: Math.abs(e.clientY - ay) + 'px' });
+  }
+  const sc = $('blocks'), sr = sc.getBoundingClientRect(); const v = e.clientY > sr.bottom - 36 ? 14 : e.clientY < sr.top + 36 ? -14 : 0;
+  clearInterval(inkRegionLive.t); inkRegionLive.t = 0;
+  if (v) { const last = { clientX: e.clientX, clientY: e.clientY }; inkRegionLive.t = setInterval(() => { if (!ctl.marquee) { clearInterval(inkRegionLive.t); return; } const t0 = sc.scrollTop; sc.scrollTop += v; if (sc.scrollTop === t0) return; const p = ctl.box.getBoundingClientRect(); ctl.marquee[2] = (last.clientX - p.left) / k; ctl.marquee[3] = (last.clientY - p.top) / k; ctl.repaintSoon(); inkRegionLive(ctl, last); }, 30); }
 }
 // what Claude sees for an area comment: that part of the page, with your ink on it
 async function regionImages(b, r) {
@@ -7422,6 +7533,7 @@ blocksEl.addEventListener('mouseout', e => {
 $('scroll').addEventListener('scroll', () => { hidePreview(); if (state.editing) drawArrowsFor(state.editing); else clearArrows(); closePops(true); }, { passive: true });
 blocksEl.addEventListener('contextmenu', e => {
   const blk = e.target.closest('.blk'); if (!blk || e.target.closest('textarea,input,canvas.inkedit')) return;
+  if (e.target.closest('.cmt,.ai')) return; // right-click in a comment or a Claude answer: the browser's own menu (Copy)
   e.preventDefault(); if (!state.sel.has(blk.dataset.id)) setSel([blk.dataset.id]); openBlockMenu(blk.dataset.id, { getBoundingClientRect: () => ({ left: e.clientX, right: e.clientX, top: e.clientY, bottom: e.clientY }) });
 });
 blocksEl.addEventListener('click', e => {
@@ -7695,6 +7807,9 @@ document.addEventListener('keydown', e => {
     return;
   }
   const ids = selIds();
+  // words selected in a comment, a Claude answer or the Ask Claude chat while blocks are still selected: ⌘C / Ctrl+C copies those words (the copy handler below), not the blocks
+  if ((mod && (k === 'c' || k === 'x')) || ((e.key === 'Delete' || e.key === 'Backspace') && !mod)) { const s = getSelection(); const n = s && !s.isCollapsed && s.rangeCount && s.toString().trim() && s.anchorNode; const ne = n && (n.nodeType === 1 ? n : n.parentElement);
+    if (ne && (ne.closest(CLIP_SRC) || !ne.closest('#blocks'))) { if (mod && k === 'x') e.preventDefault(); return; } }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteBlocks(ids); return; }
   if (mod && k === 'c') { e.preventDefault(); copyBlocks(ids); return; }
   if (mod && k === 'x') { e.preventDefault(); copyBlocks(ids, true); return; }
@@ -7716,11 +7831,35 @@ document.addEventListener('copy', e => {
   const t = e.target; if (t && t.closest && t.closest('textarea,input,.rt,math-field')) return;
   const r = sel.getRangeAt(0); const ca = r.commonAncestorContainer; const el = ca.nodeType === 1 ? ca : ca.parentElement;
   // text selected in the notes (one block or across several): keep formatting, math and the breaks between blocks
+  // text selected in a comment, a Claude reply, an ✦ Explain result or the Ask Claude chat: its own text with line breaks and $math$, without the buttons
+  if (el && el.closest(CLIP_SRC)) { const x = richSelText(r); if (x && x.plain.trim()) { e.preventDefault(); e.clipboardData.setData('text/plain', x.plain); e.clipboardData.setData('text/html', x.html); return; } }
   if (el && (el.closest('#blocks') || el.id === 'blocks')) { const x = viewSelCopy(r); if (x && x.plain.trim()) { const box = document.createElement('div'); box.appendChild(r.cloneContents()); e.preventDefault(); e.clipboardData.setData('text/plain', x.plain); e.clipboardData.setData('text/html', '<span data-nbrt="' + encodeURIComponent(x.markup) + '"></span>' + box.innerHTML); RT._clip = x; return; } }
   const box = document.createElement('div'); box.appendChild(r.cloneContents());
   if (!box.querySelector('.katex') && !(el && el.closest('.katex'))) return;
   e.preventDefault(); e.clipboardData.setData('text/plain', selSource(r)); e.clipboardData.setData('text/html', box.innerHTML);
 });
+// copying in comments / Claude replies / ✦ Explain / Ask Claude (Nov 12, Sophia: "there is an issue with copying things in comments or in the Ask Claude panel")
+const CLIP_SRC = '.cmt, .ai, #msgs, .msg';
+function richSelText(range) {
+  const kOf = n => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return e && (e.closest('.katex-display') || e.closest('.katex')); };
+  const k0 = kOf(range.startContainer), k1 = kOf(range.endContainer);
+  const marks = []; for (const k of new Set([k0, k1].filter(Boolean))) { let pt = null; try { pt = partialTex(k, range); } catch (e) {} if (pt) { k.dataset.cpo = pt; marks.push(k); } }
+  if (k0 || k1) { range = range.cloneRange(); if (k0) range.setStartBefore(k0); if (k1) range.setEndAfter(k1); }
+  let box;
+  try { box = document.createElement('div'); box.appendChild(range.cloneContents()); } finally { marks.forEach(k => delete k.dataset.cpo); }
+  const chrome = '.katex-mathml,button,.ract,.mrow,.cbtns,.ced,.cr,.cr2,.creply,.redited,.drawbox,svg,canvas,script,style,input,textarea,select,label';
+  const hb = box.cloneNode(true); hb.querySelectorAll('button,.ract,.mrow,.cbtns,.ced,.cr,.cr2,.creply,input,textarea,select,label').forEach(k => k.remove());
+  const cpo = k => k.dataset.cpo || (k.querySelector('[data-cpo]') || {}).dataset?.cpo;
+  box.querySelectorAll('.katex-display').forEach(k => { const a = k.querySelector('annotation'); const o = cpo(k); k.replaceWith(document.createTextNode(o ? '$' + o + '$' : a ? '\n$ ' + a.textContent.trim() + ' $\n' : '')); });
+  box.querySelectorAll('.katex').forEach(k => { const a = k.querySelector('annotation'); const o = cpo(k); k.replaceWith(document.createTextNode(o ? '$' + o + '$' : a ? '$' + a.textContent.trim() + '$' : k.textContent)); });
+  box.querySelectorAll(chrome).forEach(k => k.remove());
+  box.querySelectorAll('li').forEach(li => { const ol = li.parentElement && li.parentElement.tagName === 'OL'; li.prepend(ol ? ([...li.parentElement.children].indexOf(li) + 1) + '. ' : '- '); });
+  box.querySelectorAll('br').forEach(b => b.replaceWith('\n'));
+  box.querySelectorAll('div,p,li,h1,h2,h3,h4,h5,tr,pre,blockquote').forEach(d => d.prepend(d.tagName === 'P' && d.previousElementSibling ? '\n\n' : '\n')); // paragraphs keep their blank line
+  box.querySelectorAll('td,th').forEach(d => { if (d.previousElementSibling) d.prepend('\t'); });
+  const plain = box.textContent.replace(/[\u200b\uFEFF]/g, '').replace(/\u00a0/g, ' ').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  return { plain, html: hb.innerHTML };
+}
 // a selection over rendered blocks → note source ({markup}) and plain text ({plain}), one blank line between blocks
 function viewSelCopy(range) {
   const kOf = n => { const e = n && (n.nodeType === 1 ? n : n.parentElement); return e && e.closest('.katex-display') || (e && e.closest('.katex')); };
@@ -9192,7 +9331,7 @@ const Ink = {
         else { if (act.i === 0) { it.x1 = q[0]; it.y1 = q[1]; } else { it.x2 = q[0]; it.y2 = q[1]; } }
         ctl.repaintSoon(); return;
       }
-      if (act.k === 'marquee' || act.k === 'cbox') { ctl.marquee[2] = q[0]; ctl.marquee[3] = q[1]; ctl.repaintSoon(); }
+      if (act.k === 'marquee' || act.k === 'cbox') { ctl.marquee[2] = q[0]; ctl.marquee[3] = q[1]; ctl.repaintSoon(); if (act.k === 'cbox' && mode === 'page' && typeof inkRegionLive === 'function') inkRegionLive(ctl, e); }
       if (act.k === 'lasso') { const L = ctl.lasso; if (Math.hypot(q[0] - L[L.length - 2], q[1] - L[L.length - 1]) > 2 / k) { L.push(q[0], q[1]); ctl.repaintSoon(); } }
       if (act.k === 'scale') { const { opp, cor } = act; let sx = (q[0] - opp[0]) / ((cor[0] - opp[0]) || 1), sy = (q[1] - opp[1]) / ((cor[1] - opp[1]) || 1); if (!e.shiftKey) { const s0 = Math.max(0.05, (sx + sy) / 2); sx = sy = s0; } sx = Math.max(0.05, sx); sy = Math.max(0.05, sy); act.sx = sx; act.sy = sy; act.items.forEach((it, i) => { scaleTo(it, act.g[i], opp[0], opp[1], sx, sy, false); if (it.id && act.fs[i] != null) it.fs = Math.max(8, Math.min(80, act.fs[i] * Math.sqrt(sx * sy))); else if (it.id && it.txt && sx === sy) it.fs = Math.max(8, Math.min(80, (it.t === 'tbl' ? 20 : 22) * sx)); }); ctl.repaintSoon(); }
     });
@@ -9229,7 +9368,10 @@ const Ink = {
       }
       if (a.k === 'resize') { const it = a.it; if (LINEY.has(it.t)) { const end1 = Ink.boxAt(ink, it.x1, it.y1, it), end2 = Ink.boxAt(ink, it.x2, it.y2, it); if (a.i === 0 && end1) it.a1 = end1.id; if (a.i === 1 && end2) it.a2 = end2.id; } ctl.repaint(); ctl.save('resize', a.before); return; }
       if (a.k === 'cbox') {
-        const m = ctl.marquee; ctl.marquee = null; ctl.repaint();
+        const m = ctl.marquee; ctl.marquee = null; ctl.repaint(); if (typeof inkRegionLive === 'function') inkRegionLive(null);
+        // on handwritten pages the box may run on over the next page(s): it is split per page, the first page holds the comment
+        const parts = mode === 'page' && typeof inkRegionParts === 'function' ? inkRegionParts(ctl, m, e) : null;
+        if (parts && parts.length) { const r0 = parts[0].region; if (r0.w >= 8 && (parts.length > 1 || r0.h >= 8) && typeof onInkRegion === 'function') onInkRegion(parts[0].b, r0, parts.slice(1)); return; }
         const r = { x: Math.round(Math.min(m[0], m[2])), y: Math.round(Math.min(m[1], m[3])), w: Math.round(Math.abs(m[2] - m[0])), h: Math.round(Math.abs(m[3] - m[1])) };
         if (r.w >= 8 && r.h >= 8 && typeof onInkRegion === 'function') onInkRegion(ctl.id, r);
         return;
@@ -9266,7 +9408,7 @@ const Ink = {
         if (!mod && !e.altKey && e.key.length === 1) { stop(); const before = begin(); T._cell = cs.a.slice(); T.cells[cs.a[0]][cs.a[1]] = ''; editLabel(T, before, e.key); return; } // typing replaces the cell, like a spreadsheet
       }
       if ((e.key === 'Delete' || e.key === 'Backspace') && ctl.sel.size) { stop(); Ink.delSel(ctl); return; }
-      if (e.key === 'Escape') { stop(); if (ctl.sel.size) { ctl.sel.clear(); ctl.repaint(); Ink.syncBars(); } else if (mode === 'block') stopEdit(true); return; }
+      if (e.key === 'Escape') { stop(); if (ctl.sel.size) { ctl.sel.clear(); ctl.repaint(); Ink.syncBars(); } else if (mode === 'block') stopEdit(true); else if (mode === 'page' && typeof PZ !== 'undefined' && PZ.full) PZ.setFull(false); return; }
       if (mod && k === 'a') { stop(); ctl.sel = new Set([...ink.shapes, ...ink.strokes]); ctl.repaint(); Ink.syncBars(); return; }
       if (mod && k === 'd' && ctl.sel.size) { stop(); Ink.dupSel(ctl); return; }
       if (mod && (k === 'c' || k === 'x') && ctl.sel.size) { stop(); Ink.copySel(ctl, k === 'x'); return; }
@@ -9337,11 +9479,36 @@ const Ink = {
       }
       if (ctl && k === 'taller') { change('more space', [ctl.id], () => { const ink = Ink.data(inkB(ctl.id)); ink.h = (ink.h || 420) + 260; }); ctl.repaint(); ctl.save(); }
       if (ctl && k === 'done') { stopEdit(); return; }
-      if (ctl && k === 'ai') { openMenu(a, [{ html: '✦ Type out the handwriting<small>adds typed notes below, drawing stays</small>', fn: () => photoAI(ctl.id, 'transcribe') }, { html: '✦ Tidy into a clean diagram<small>adds a neat version below</small>', fn: () => photoAI(ctl.id, 'diagram') }, { html: '✦ Explain this sketch', fn: () => photoAI(ctl.id, 'explain') }]); return; }
+      if (ctl && k === 'ai') { openMenu(a, [{ html: '✦ Type out the handwriting' + (inkFixPref() ? ' ✓' : '') + '<small>adds typed notes below, drawing stays; Claude fixes slips and marks each change</small>', fn: () => { lsSet('nb.inkFix', '1'); photoAI(ctl.id, 'transcribe'); } }, { html: '✦ Type it out word for word' + (inkFixPref() ? '' : ' ✓') + '<small>exact transcription, no corrections</small>', fn: () => { lsSet('nb.inkFix', '0'); photoAI(ctl.id, 'transcribe'); } }, { html: '✦ Tidy into a clean diagram<small>adds a neat version below</small>', fn: () => photoAI(ctl.id, 'diagram') }, { html: '✦ Explain this sketch', fn: () => photoAI(ctl.id, 'explain') }]); return; }
     }
     Ink.syncBars();
   }
 };
+// ---- OneNote-style pen tip instead of a crosshair: a dot in the pen colour as wide as the line it will draw
+// (highlighter: a see-through nib in its colour; eraser: a ring the size of what it rubs out). Stylus never gets a crosshair.
+const INK_CUR = {
+  svg(w, h, body) { return 'url("data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">' + body + '</svg>') + '") ' + Math.floor(w / 2) + ' ' + Math.floor(h / 2); },
+  scale(box) { const b = inkB(box.dataset.ink); const ink = b && b.ink; const w = box.clientWidth; return ink && w ? w / VW(ink) : 1; },
+  css(tool, k, pen) {
+    const f = n => Math.round(n * 10) / 10;
+    if (tool === 'pen') { const d = Math.max(2.5, Math.min(28, Ink.size * k * 1.15 + 0.8)); const S = Math.ceil(d + 4) | 1; return INK_CUR.svg(S, S, '<circle cx="' + S / 2 + '" cy="' + S / 2 + '" r="' + f(d / 2) + '" fill="' + Ink.color + '" stroke="#fff" stroke-opacity=".75" stroke-width=".8"/>') + ', auto'; }
+    if (tool === 'hl') { const L = Math.max(8, Math.min(30, (HL_W[Ink.size] || 18) * k)); const W = Math.max(4, Math.round(L * 0.38)); const S = Math.ceil(L + 4) | 1; return INK_CUR.svg(S, S, '<rect x="' + f((S - W) / 2) + '" y="' + f((S - L) / 2) + '" width="' + W + '" height="' + f(L) + '" rx="1.5" fill="' + Ink.hlColor + '" fill-opacity=".6" stroke="#000" stroke-opacity=".35" stroke-width=".8"/>') + ', auto'; }
+    if (tool === 'erase') { return INK_CUR.svg(21, 21, '<circle cx="10.5" cy="10.5" r="9" fill="#fff" fill-opacity=".35" stroke="#fff" stroke-width="2.4"/><circle cx="10.5" cy="10.5" r="9" fill="none" stroke="#3b4350" stroke-width="1.2"/>') + ', auto'; }
+    if (tool === 'select' || tool === 'text') return '';
+    // shapes, lines, tables, area comments, lasso: the mouse keeps its crosshair; a stylus gets a small ring
+    if (pen) return INK_CUR.svg(11, 11, '<circle cx="5.5" cy="5.5" r="3.4" fill="none" stroke="#fff" stroke-width="2.2"/><circle cx="5.5" cy="5.5" r="3.4" fill="none" stroke="' + (tool === 'cbox' ? '#7A3E9D' : Ink.color) + '" stroke-width="1.2"/>') + ', auto';
+    return '';
+  },
+  apply(box, pen) {
+    if (!box || !box.classList.contains('edit')) return; if (pen != null) box._curPen = pen;
+    const k = INK_CUR.scale(box); const key = Ink.tool + '|' + Ink.color + '|' + Ink.hlColor + '|' + Ink.size + '|' + Math.round(k * 50) + '|' + (box._curPen ? 1 : 0);
+    if (box._curKey === key) return; box._curKey = key; box.style.cursor = INK_CUR.css(Ink.tool, k, !!box._curPen);
+  },
+  refresh() { document.querySelectorAll('.drawbox.edit').forEach(b => { b._curKey = ''; INK_CUR.apply(b); }); }
+};
+{ const sb = Ink.syncBars; Ink.syncBars = function () { sb.apply(this, arguments); try { INK_CUR.refresh(); } catch (e) {} }; }
+const inkCurOn = e => { if (e.buttons) return; const box = e.target.closest && e.target.closest('.drawbox.edit'); if (box) INK_CUR.apply(box, e.pointerType === 'pen'); };
+document.addEventListener('pointerover', inkCurOn, true); document.addEventListener('pointermove', inkCurOn, { capture: true, passive: true });
 // drag the bottom edge of a drawing to give it more (or less) room — never cutting off what's drawn
 document.addEventListener('pointerdown', e => {
   const h = e.target.closest && e.target.closest('.dgrow'); if (!h) return;
@@ -10492,6 +10659,19 @@ async function cropBlob(blob, bb) {
   return await new Promise(r => c.toBlob(r, 'image/jpeg', 0.88));
 }
 // image or sketch block: transcribe | diagram | explain
+// handwriting → typed text: by default Claude works like a careful TA — transcribes faithfully, then fixes real mistakes and marks
+// every change where it is; "Correct mistakes" off gives a word-for-word transcription (the choice is remembered)
+function inkFixPref() { return lsGet('nb.inkFix') !== '0'; }
+function inkTranscribeRules(fix, plain) {
+  if (!fix) return 'Transcribe exactly what is written: keep their wording, order, notation and any mistakes — do not correct, add, complete or solve anything. Unreadable bits: [?].';
+  return 'Work like a careful TA, not just a transcriber:\n' +
+    '1. Transcribe faithfully — keep the student\'s wording, order, notation, structure and level of detail.\n' +
+    '2. Then check the content. Wherever something is wrong — a misread or mis-written symbol, a wrong sign, index, subscript, exponent, bound or constant, an algebra/arithmetic slip, a step that does not follow, or a false statement — write the CORRECT version in its place and mark it right there with _[corrected: was …]_ (what they wrote, very short).' +
+    (plain ? ' If a correction needs a reason, add one short line "Note: …" right after it.' : ' If a correction needs a reason, put right after that block a {"type":"box","kind":"warn","title":"Correction","text":"…"} box (one or two sentences: what was wrong and why).') + '\n' +
+    '3. Fill in a skipped step only when the argument is wrong or can\'t be followed without it; mark it _[added]_.\n' +
+    '4. Don\'t touch correct work, wording or notation, and don\'t add new material. If you can\'t tell a slip from hard-to-read handwriting, keep their version and mark it _[check: …]_. Unreadable bits: [?].';
+}
+function inkFixCount(blocks) { let n = 0; for (const x of blocks || []) n += (String((x && x.text) || '') + JSON.stringify((x && x.rows) || '')).split('[corrected:').length - 1; return n; }
 async function photoAI(id, mode) {
   const b = state.blocks.get(id); if (!b) return;
   const sample = await getSample(); if (!sample) { toast('Asking Claude isn’t available in this view.'); return; }
@@ -10502,17 +10682,17 @@ async function photoAI(id, mode) {
   const body = slot.querySelector('.aib'); const m = state.docs.get(state.docId) || {};
   const ctx = 'Course: ' + (m.course || 'math/statistics') + '. Notes: ' + (m.title || '') + '.\n' + blockContext(b);
   const P = {
-    transcribe: 'Transcribe this ' + (b.type === 'image' ? 'photo of a whiteboard / notes' : 'handwritten sketch') + ' into a student\'s typed lecture notes. Keep their wording and order; put math in $...$ (LaTeX) and use boxes for clear definitions/theorems/proofs. For a drawing or graph include {"type":"diagram","bbox":[x0,y0,x1,y1]} with the region as fractions of the image (0–1) and a short "caption". Unreadable bits: [?].\n' + ctx + '\n\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}',
+    transcribe: 'Turn this ' + (b.type === 'image' ? 'photo of a whiteboard / notes' : 'handwritten sketch') + ' into a student\'s typed lecture notes. Put math in $...$ (LaTeX) and use boxes for clear definitions/theorems/proofs. For a drawing or graph include {"type":"diagram","bbox":[x0,y0,x1,y1]} with the region as fractions of the image (0–1) and a short "caption".\n' + inkTranscribeRules(inkFixPref()) + '\n' + ctx + '\n\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}',
     diagram: 'Redraw the diagram in this image as a clean, simple vector diagram for a student\'s notes (boxes, circles, arrows, labels, axes/curves). Keep the meaning and layout; drop smudges and stray marks.\n' + ctx + '\n\n' + DIAGRAM_SCHEMA + '\nReply with only JSON: {"type":"diagram","height":H,"caption":"one short caption","shapes":[…]}',
     explain: 'Explain what this ' + (b.type === 'image' ? 'board / photo' : 'sketch') + ' shows to the student whose notes it is in: what each part means and why it matters. Under 220 words.\n' + ctx + '\n\n' + FMT
   };
   let out = null;
   try {
-    const r = await sample(P[mode], { modelTier: 'default', images: [blob], onText: mode === 'explain' ? (u => { body.textContent = u.text; }) : undefined });
+    const r = await sample(P[mode], mode === 'transcribe' ? aiModelOpts(aiModelPref(), { images: [blob] }) : { modelTier: 'default', images: [blob], onText: mode === 'explain' ? (u => { body.textContent = u.text; }) : undefined });
     if (mode === 'explain') { out = r.text.trim(); body.innerHTML = textHtml(out); }
     else if (mode === 'diagram') { const d = parseJSONReply(r.text); out = normBlocks([Object.assign({ type: 'diagram' }, d)], b.aside ? { aside: { t: now(), by: 'claude' } } : {}); }
     else { out = normBlocks(parseJSONReply(r.text).blocks, b.aside ? { aside: { t: now() } } : {}); for (const x of out) if (x.type === 'ink' && x.bbox) { if (b.type === 'image') { try { const cb = await cropBlob(blob, x.bbox); x.crop = URL.createObjectURL(cb); x._blob = cb; } catch (e) {} } else x.ink = cropInk(Ink.data(b), x.bbox); } }
-    if (mode !== 'explain') { if (!out.length) throw { code: 'empty' }; body.innerHTML = protoHtml(out); paintProtos(body, out); }
+    if (mode !== 'explain') { if (!out.length) throw { code: 'empty' }; body.innerHTML = protoHtml(out); paintProtos(body, out); const nfix = mode === 'transcribe' ? inkFixCount(out) : 0; if (nfix) body.insertAdjacentHTML('afterbegin', '<p class="hint">✦ Claude corrected ' + nfix + ' thing' + (nfix > 1 ? 's' : '') + ' — marked <i>[corrected: …]</i></p>'); }
   } catch (e) { body.textContent = e && e.code === 'bad_request' ? 'This view can’t send images to Claude.' : e && e.code && e.code !== 'empty' ? sampleErr(e) : 'Claude’s answer didn’t come back in a usable form — try again.'; return; }
   const row = document.createElement('div'); row.className = 'row';
   row.innerHTML = mode === 'explain' ? '<button class="btn" data-ai="save">Save as comment</button><button class="btn" data-ai="aside">Add below as aside</button>' : '<button class="btn go" data-ai="ins">Insert below' + (b.aside ? ' (as aside)' : '') + '</button>' + (mode === 'transcribe' ? '<button class="btn" data-ai="copy">Copy text</button>' : '');
@@ -10663,8 +10843,8 @@ function inkDocBar() {
   const z = Math.round((typeof PZ !== 'undefined' ? PZ.z : 1) * 100);
   const typed = m.typed && state.docs.get(m.typed) && !state.docs.get(m.typed).trashed;
   // one slim row: drawing tools + full page + "⋯" (everything you set once per page lives in the menu)
-  bar.innerHTML = '<div class="inkbar" data-tool="' + esc(Ink.tool) + '" data-mode="page">' + Ink.toolsHtml() + '<span class="vsep"></span>' +
-    '<button class="btn ib' + (PZ.full ? ' on' : '') + '" data-pa="full" title="Full page — hide the sidebars and fit the page to the window">⛶</button>' +
+  bar.innerHTML = '<div class="inkbar" data-tool="' + esc(Ink.tool) + '" data-mode="page"><span class="fsonly"><button class="btn ib" data-pa="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button><button class="btn ib" data-pa="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button><span class="vsep"></span></span>' + Ink.toolsHtml() + '<span class="vsep"></span>' +
+    '<button class="btn ib' + (PZ.full ? ' on' : '') + '" data-pa="full" title="' + (PZ.full ? 'Leave full screen (Esc)' : 'Full screen — the pages fill the window (Esc to leave)') + '">⛶</button>' +
     '<span class="imwrap"><button class="btn ib" data-pa="more" title="Paper, pages, zoom, PDF, convert to typed notes" aria-haspopup="true">⋯</button><div class="inkmore" hidden>' +
       '<div class="imrow"><span class="iml">Zoom</span><span class="zgrp"><button class="btn ib" data-pa="zo" title="Zoom out (⌘−, pinch, or ⌘/Ctrl + scroll)">−</button><button class="btn zl" data-pa="zfit" title="Reset zoom (⌘0)">' + z + '%</button><button class="btn ib" data-pa="zi" title="Zoom in (⌘+, pinch, or ⌘/Ctrl + scroll)">+</button></span></div>' +
       '<div class="imrow"><span class="iml">Paper</span><select data-pa="bg" aria-label="Paper">' + [['lines', 'lined'], ['grid', 'grid'], ['plain', 'blank']].map(x => '<option value="' + x[0] + '"' + ((m.bg || 'lines') === x[0] ? ' selected' : '') + '>' + x[1] + '</option>').join('') + '</select></div>' +
@@ -10679,6 +10859,7 @@ function placeInkBar() {
   const bar = $('inkdocbar'), hdr = document.querySelector('header.bar'), home = $('inkhome'); if (!bar || !hdr || !home) return;
   const toHome = () => { if (bar.parentElement !== home.parentElement || bar.previousElementSibling !== home) home.after(bar); bar.classList.remove('inhdr'); };
   if (!isInkDoc()) { toHome(); return; }
+  if (typeof PZ !== 'undefined' && PZ.full) { toHome(); PZ.layout(); return; } // full screen hides the top bar: the tools sit above the page
   const slot = $('fmt'); if (bar.parentElement !== hdr) slot.after(bar); bar.classList.add('inhdr');
   if (hdr.scrollWidth > hdr.clientWidth + 1 || hdr.offsetHeight > 54) toHome();
   if (typeof PZ !== 'undefined') PZ.layout();
@@ -10697,6 +10878,8 @@ $('inkdocbar').addEventListener('click', e => {
   if (pa && pa.dataset.pa === 'zo') { PZ.zoomAt(PZ.z / 1.2); return; }
   if (pa && pa.dataset.pa === 'zfit') { PZ.zoomAt(1); return; }
   if (pa && pa.dataset.pa === 'full') { PZ.setFull(!PZ.full); return; }
+  if (pa && pa.dataset.pa === 'undo') { undo(); return; }
+  if (pa && pa.dataset.pa === 'redo') { redo(); return; }
   if (pa && pa.dataset.pa === 'export') { exportInkPdf(); return; }
   if (pa && pa.dataset.pa === 'convert') { convertInkDoc(); return; }
   if (pa && pa.dataset.pa === 'typed') { const m = state.docs.get(state.docId); if (m && m.typed) openDoc(m.typed); return; }
@@ -10711,15 +10894,34 @@ async function convertInkDoc() {
   const pages = ordered().filter(b => b.type === 'page' && Ink.has(b.ink));
   if (!pages.length) { toast('Write something first'); return; }
   const sample = await getSample(); if (!sample) { toast('Asking Claude isn’t available in this view.'); return; }
+  // first: how Claude should do it (model, and whether to fix mistakes or type it word for word)
+  const opt = await new Promise(res => {
+    const d = modal('<div class="pdfx cvask"><b>✦ Convert to typed notes</b><p class="hint" style="margin:4px 0 12px">Claude types up ' + (pages.length === 1 ? 'the page' : 'all ' + pages.length + ' pages') + ' into a new typed note, linked both ways. Your handwriting stays exactly as it is.</p>' +
+      '<label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px"><input type="checkbox" data-cv="fix"' + (inkFixPref() ? ' checked' : '') + ' style="margin-top:3px"><span><b>Correct mistakes</b><br><span class="hint">Like a TA: fixes misread symbols, wrong signs or indices, algebra slips and wrong statements, and marks every change <i>[corrected: was …]</i>. Untick for a word-for-word transcription.</span></span></label>' +
+      '<div style="margin:12px 0 4px">' + aiModelPicker() + '</div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn" data-x="cancel">Cancel</button><button class="btn go" data-cv="go">Convert</button></div></div>');
+    let done = false; const fin = v => { if (done) return; done = true; clearInterval(w); res(v); };
+    const w = setInterval(() => { if (!d.isConnected) fin(null); }, 250);
+    d.querySelector('[data-cv="go"]').addEventListener('click', () => { const fix = d.querySelector('[data-cv="fix"]').checked; lsSet('nb.inkFix', fix ? '1' : '0'); const pref = aiModelRead(d); d.remove(); fin({ fix, pref }); });
+    setTimeout(() => { const g = d.querySelector('[data-cv="go"]'); if (g) g.focus(); }, 0);
+  });
+  if (!opt) return;
   const m = modal('<div style="width:min(460px,calc(100vw - 48px))"><b>✦ Converting to typed notes</b><p class="hint cvst">Reading page 1 of ' + pages.length + '…</p><div class="cvbar"><i style="width:4%"></i></div><p class="hint">Your handwritten pages stay exactly as they are. The typed version is a new note, linked both ways.</p><div style="text-align:right"><button class="btn" data-x="cancel">Cancel</button></div></div>');
   let cancelled = false; m.querySelector('[data-x="cancel"]').addEventListener('click', () => { cancelled = true; });
-  const all = []; let failed = 0;
+  const all = []; let failed = 0; let prevText = '';
+  const allPages = ordered().filter(b => b.type === 'page');
   for (let i = 0; i < pages.length && !cancelled; i++) {
     m.querySelector('.cvst').textContent = 'Reading page ' + (i + 1) + ' of ' + pages.length + '…'; m.querySelector('.cvbar i').style.width = (4 + 92 * i / pages.length) + '%';
     try {
       const blob = await Ink.png(pages[i].ink, 1.4, { keepBg: false });
-      const r = await sample('Transcribe page ' + (i + 1) + ' of a student\'s handwritten lecture notes (' + (src.course || 'math/statistics') + ', "' + (src.title || '') + '") into typed notes. Keep their wording, order and structure; put math in $...$ (LaTeX); make clear definitions/theorems/proofs/examples into boxes and headings into headings. For each drawing, graph or diagram include {"type":"diagram","bbox":[x0,y0,x1,y1],"caption":"…"} with its region as fractions of the page (0–1), in reading order. Unreadable bits: [?].' + (all.length ? '\nThe previous page ended with: ' + JSON.stringify(all.slice(-2).map(x => x.text || '').join(' ').slice(-300)) : '') + '\n\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}', { modelTier: 'default', images: [blob] });
+      const pk = pages[i].ink, pn = allPages.indexOf(pages[i]) + 1;
+      const printed = pk.img && pk.text ? '\nThis page is a printed PDF page' + (pk.src ? ' (' + pk.src + ')' : '') + ' the student wrote on. Its printed text, to help you read it accurately (type up the printed content only where the student\'s writing depends on it, e.g. a problem statement they answer):\n<<<\n' + String(pk.text).slice(0, 2500) + '\n>>>' : '';
+      const prev = prevText ? '\nFor continuity, the previous page was typed up as (don\'t repeat it; continue its numbering, notation and any unfinished sentence or derivation):\n<<<\n' + prevText.slice(-2500) + '\n>>>' : '';
+      const r = await sample('Turn page ' + pn + ' of ' + allPages.length + ' of a student\'s handwritten lecture notes into typed notes.\nCourse: ' + (src.course || 'math/statistics') + '. Notes title: "' + (src.title || '') + '".\n' +
+        'Keep their structure; put math in $...$ (LaTeX); make clear definitions/theorems/proofs/examples into boxes and headings into headings. For each drawing, graph or diagram include {"type":"diagram","bbox":[x0,y0,x1,y1],"caption":"…"} with its region as fractions of the page (0–1), in reading order.\n' +
+        inkTranscribeRules(opt.fix) + printed + prev + '\n\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}', aiModelOpts(opt.pref, { images: [blob] }));
       const out = normBlocks(parseJSONReply(r.text).blocks);
+      prevText = out.map(x => x.type === 'math' ? '$$' + (x.text || '') + '$$' : x.type === 'table' ? (x.rows || []).map(r => r.join(' | ')).join('\n') : (x.title ? x.title + ': ' : '') + (x.text || '')).filter(Boolean).join('\n');
       for (const x of out) { if (x.type === 'ink') x.ink = x.bbox ? cropInk(pages[i].ink, x.bbox) : null; }
       all.push(...out.filter(x => x.type !== 'ink' || (x.ink && Ink.has(x.ink))));
     } catch (e) { failed++; all.push({ type: 'box', kind: 'warn', title: 'Page ' + (i + 1), text: 'Claude couldn’t read this page' + (e && e.code ? ' (' + sampleErr(e) + ')' : '') + ' — see the handwritten original.' }); if (e && (e.code === 'not_granted' || e.code === 'bad_request')) break; }
@@ -10732,7 +10934,8 @@ async function convertInkDoc() {
   for (const x of all) { const tp = x.type === 'box' ? 'box:' + x.kind : x.type; const nb = newBlock(tp, Object.assign({}, x)); delete nb.bbox; if (nb.type === 'ink') nb.ink = Object.assign(nb.ink, x.cap ? { cap: x.cap } : {}); delete nb.cap; nb.pos = pos; pos += 1024; Store.saveBlock(nm.id, nb, 0); saved.push(nb); }
   if (Store.mode !== 'db' && Store.local.docs[nm.id]) { Store.local.docs[nm.id].blocks = Object.fromEntries(saved.map(b => [b.id, clone(b)])); Store.persist(); }
   m.remove(); renderSide(); inkDocBar();
-  toast('Typed version created' + (failed ? ' (' + failed + ' page' + (failed > 1 ? 's' : '') + ' couldn’t be read)' : ''), 'Open it', () => openDoc(nm.id));
+  const nfix = opt.fix ? inkFixCount(all) : 0;
+  toast('Typed version created' + (nfix ? ' · ' + nfix + ' correction' + (nfix > 1 ? 's' : '') + ' marked [corrected: …]' : '') + (failed ? ' (' + failed + ' page' + (failed > 1 ? 's' : '') + ' couldn’t be read)' : ''), 'Open it', () => openDoc(nm.id));
 }
 function docLinkHtml() {
   const m = state.docs.get(state.docId) || {}; const o = m.typed ? state.docs.get(m.typed) : m.from ? state.docs.get(m.from) : null;
@@ -10885,7 +11088,7 @@ var PZ = {
   },
   quick() { let w = 0; for (const b of ordered()) if (b.type === 'page') { const c = Ink.ctl[b.id]; if (c && c.box && c.box.isConnected) { if (c.label) c.commitLabel(); if (!w) w = c.box.clientWidth; Ink.quickScale(c, w); } } },
   repaint() { for (const b of ordered()) if (b.type === 'page') { const c = Ink.ctl[b.id]; if (c && document.body.contains(c.box)) { if (c.label) c.commitLabel(); c.repaint(); } } },
-  label() { const l = document.querySelector('#inkdocbar [data-pa="zfit"]'); if (l) l.textContent = Math.round(PZ.z * 100) + '%'; const f = document.querySelector('#inkdocbar [data-pa="full"]'); if (f) { f.classList.toggle('on', PZ.full); f.title = PZ.full ? 'Leave full page (Esc)' : 'Full page — hide the sidebars and use the whole window'; } },
+  label() { const l = document.querySelector('#inkdocbar [data-pa="zfit"]'); if (l) l.textContent = Math.round(PZ.z * 100) + '%'; const f = document.querySelector('#inkdocbar [data-pa="full"]'); if (f) { f.classList.toggle('on', PZ.full); f.title = PZ.full ? 'Leave full screen (Esc)' : 'Full screen — the pages fill the window (Esc to leave)'; } },
   // zoom keeping the point under (cx, cy) in place
   zoomAt(z, cx, cy) {
     z = Math.max(0.5, Math.min(3, z)); const vp = $('blocks'); const r0 = vp.getBoundingClientRect();
@@ -10898,8 +11101,13 @@ var PZ = {
       vp.scrollLeft = ax * vp.scrollWidth / sw - (p.cx - r.left); vp.scrollTop = ay * vp.scrollHeight / sh - (p.cy - r.top);
     });
   },
-  setFull(on) { if (on === PZ.full) return; PZ.full = on; PZ.layout(); PZ.repaint(); PZ.label(); window.dispatchEvent(new Event('resize')); },
-  sync() { if (!isInkDoc() && PZ.full) PZ.full = false; PZ.layout(); PZ.label(); if (typeof TZ !== 'undefined') TZ.apply(); if (isInkDoc()) requestAnimationFrame(() => PZ.layout()); }
+  // full screen: the pages fill the window (top bar, notes list and comments hidden; the drawing tools stay). Uses the browser's
+  // real full screen when the page is allowed to; inside an embed that forbids it, the same layout simply covers the window.
+  setFull(on) { if (on === PZ.full) return; PZ.full = on; if (on) PZ.enterFs(); else PZ.exitFs(); placeInkBar(); PZ.layout(); PZ.repaint(); PZ.label(); window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => { PZ.layout(); if (typeof layoutCmts === 'function') layoutCmts(); }); },
+  fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; },
+  enterFs() { const de = document.documentElement; if (PZ.fsEl()) return; try { const r = de.requestFullscreen ? de.requestFullscreen({ navigationUI: 'hide' }) : de.webkitRequestFullscreen ? de.webkitRequestFullscreen() : null; if (r && r.catch) r.catch(() => {}); } catch (e) {} },
+  exitFs() { if (!PZ.fsEl()) return; try { const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen ? document.webkitExitFullscreen() : null; if (r && r.catch) r.catch(() => {}); } catch (e) {} },
+  sync() { if (!isInkDoc() && PZ.full) { PZ.full = false; PZ.exitFs(); } PZ.layout(); PZ.label(); if (typeof TZ !== 'undefined') TZ.apply(); if (isInkDoc()) requestAnimationFrame(() => PZ.layout()); }
 };
 let pzCmt = 0; $('blocks').addEventListener('scroll', () => { if (!isInkDoc() || pzCmt) return; pzCmt = requestAnimationFrame(() => { pzCmt = 0; if (typeof layoutCmts === 'function') layoutCmts(); }); }, { passive: true });
 $('scroll').addEventListener('wheel', e => { if (!isInkDoc() || !(e.ctrlKey || e.metaKey) || e.target.closest('.rpanel,.modal')) return; e.preventDefault(); PZ.zoomAt((PZ.pend ? PZ.pend.z : PZ.z) * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY); }, { passive: false });
@@ -10925,6 +11133,8 @@ document.addEventListener('keydown', e => {
   if (e.key === '=' || e.key === '+') { e.preventDefault(); PZ.zoomAt(PZ.z * 1.2); } else if (e.key === '-') { e.preventDefault(); PZ.zoomAt(PZ.z / 1.2); } else if (e.key === '0') { e.preventDefault(); PZ.zoomAt(1); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && PZ.full && isInkDoc() && !document.querySelector('.modal') && !(Ink.active && Ink.active.sel && Ink.active.sel.size) && !e.target.closest('input,textarea,.dlabel-wrap')) PZ.setFull(false); });
+const pzFsChange = () => { if (PZ.fsEl()) PZ.fsApi = true; else if (PZ.fsApi) { PZ.fsApi = false; if (PZ.full) PZ.setFull(false); } };
+document.addEventListener('fullscreenchange', pzFsChange); document.addEventListener('webkitfullscreenchange', pzFsChange);
 let pzRz; window.addEventListener('resize', () => { if (!isInkDoc()) return; clearTimeout(pzRz); pzRz = setTimeout(() => { PZ.layout(); }, 120); });
 
 // ---- export the handwritten pages as a PDF (for handing in homework)
@@ -11859,6 +12069,15 @@ function makeAside(ids) { change('make aside', ids, () => { for (const id of ids
 
 // ---------------------------------------------------------------- Claude helpers
 async function getSample() { try { return window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch (e) { return null; } }
+// ---- which Claude model does the heavy jobs (converting handwriting / PDFs into notes). Sophia, Nov 12: "default to Opus 5.5 high"
+const AI_MODELS = [['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-opus-5', 'Opus 5'], ['', 'Automatic (best available)']];
+const AI_EFFORTS = [['high', 'High'], ['medium', 'Medium'], ['low', 'Low']];
+function aiModelPref() { return { model: lsGet('nb.aiModel') ?? 'claude-opus-5-5', effort: lsGet('nb.aiEffort') || 'high' }; }
+// options for a sample() call that should use the chosen model; falls back to the most capable tier if the model can't answer
+function aiModelOpts(pref, extra) { pref = pref || aiModelPref(); const o = { modelTier: 'complex', effort: pref.effort || 'high' }; if (pref.model) o.model = pref.model; return Object.assign(o, extra || {}); }
+// two <select>s (model + effort) for a dialog; read them back with aiModelRead(root)
+function aiModelPicker() { const p = aiModelPref(); return '<span class="aimodel" style="display:inline-flex;gap:6px;align-items:center;font:12.5px var(--f-ui)"><label>Model <select data-aim="model">' + AI_MODELS.map(([v, l]) => '<option value="' + v + '"' + (v === p.model ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label><label>Effort <select data-aim="effort">' + AI_EFFORTS.map(([v, l]) => '<option value="' + v + '"' + (v === p.effort ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label></span>'; }
+function aiModelRead(root) { const m = root && root.querySelector('[data-aim="model"]'), e = root && root.querySelector('[data-aim="effort"]'); const pref = { model: m ? m.value : aiModelPref().model, effort: e ? e.value : aiModelPref().effort }; lsSet('nb.aiModel', pref.model); lsSet('nb.aiEffort', pref.effort); return pref; }
 function sampleErr(e) { return e && e.code === 'not_granted' ? 'Claude wasn’t allowed to answer in this view.' : e && e.code === 'rate_limited' ? 'Too many requests — try again in a moment.' : 'Couldn’t reach Claude.'; }
 function blockPlain(b) {
   if (!b) return '';
@@ -11871,6 +12090,21 @@ function blockPlain(b) {
   if (b.type === 'page') return '[handwritten page]';
   if (b.type === 'image') return '[image' + (b.img && b.img.cap ? ': ' + b.img.cap : '') + ']';
   return b.text || '';
+}
+// context centred on a block (Nov 12 testing: docContext only sent the TOP of long notes, so Claude missed the part being asked about).
+// Outline of every heading/result, then the blocks nearest `focusId`, growing outward until the budget is used. Skips Claude summaries/outlines.
+function docContextNear(focusId, maxChars) {
+  maxChars = maxChars || 12000; const m = state.docs.get(state.docId) || {};
+  const all = ordered().filter(b => !(b.type === 'box' && (b.kind === 'sum' || b.kind === 'outline')));
+  const txt = b => { const t = blockPlain(b).replace(/@\[([^\]]+)\]/g, (x, id) => (state.nums[id] || {}).label || 'ref'); return t.trim() ? (b.aside ? '[aside] ' : '') + t : ''; };
+  const full = all.map(txt); const total = full.reduce((a, t) => a + t.length + 1, 0);
+  let head = 'Course: ' + (m.course || 'unknown') + '\nNotes title: ' + (m.title || 'untitled') + '\n\n';
+  if (total <= maxChars) return head + full.filter(Boolean).join('\n') + '\n';
+  const outline = all.map((b, i) => (/^h[123]$/.test(b.type) || (b.type === 'box' && (state.nums[b.id] || {}).label)) ? '- ' + full[i].split('\n')[0].slice(0, 120) : '').filter(Boolean).join('\n');
+  head += 'Outline of the whole notes:\n' + outline.slice(0, Math.floor(maxChars / 4)) + '\n\nThe part of the notes around the question:\n';
+  let k = Math.max(0, all.findIndex(b => b.id === focusId)); let lo = k, hi = k, used = head.length + full[k].length;
+  while (true) { let grew = false; if (lo > 0 && used + full[lo - 1].length < maxChars) { lo--; used += full[lo].length + 1; grew = true; } if (hi < all.length - 1 && used + full[hi + 1].length < maxChars) { hi++; used += full[hi].length + 1; grew = true; } if (!grew) break; }
+  return head + (lo > 0 ? '…\n' : '') + full.slice(lo, hi + 1).filter(Boolean).join('\n') + (hi < all.length - 1 ? '\n…' : '') + '\n';
 }
 function docContext(maxChars) {
   const m = state.docs.get(state.docId) || {}; let s = 'Course: ' + (m.course || 'unknown') + '\nNotes title: ' + (m.title || 'untitled') + '\n\n';
@@ -11949,12 +12183,14 @@ async function claudeReply(b, c, question) {
   let out;
   try {
     const imgs = c.region && b.ink ? await regionImages(b, c.region) : null;
+    // a box that runs on over the next page(s): a crop of each further piece too
+    const moreCrops = imgs && c.more ? (await Promise.all(c.more.map(m => { const ob = state.blocks.get(m.b); return ob && ob.ink ? regionImages(ob, m.region) : null; }))).filter(Boolean).map(x => x.crop) : [];
     const where = b.ink && b.ink.src ? 'a printed page (' + b.ink.src + ')' : 'a drawing in their notes';
     const pageCtx = c.region && b.ink ? printoutContext(b) : '';
-    const lead = imgs ? 'The comment is about an area the student boxed on ' + where + '. Two pictures are attached: first the WHOLE page with the boxed area outlined in red (for context), then a zoomed-in crop of just that area (for detail). Anything handwritten on them is the student\'s own markup. Focus your answer on the boxed area, using the rest of the page and lecture for context.\n' + pageCtx + '\n' : '';
+    const lead = imgs ? 'The comment is about an area the student boxed on ' + where + '. Two pictures are attached: first the WHOLE page with the boxed area outlined in red (for context), then a zoomed-in crop of just that area (for detail). Anything handwritten on them is the student\'s own markup. Focus your answer on the boxed area, using the rest of the page and lecture for context.' + (moreCrops.length ? ' The boxed area runs on past the page break: ' + (moreCrops.length > 1 ? moreCrops.length + ' more crops follow' : 'one more crop follows') + ', of its continuation on the next page' + (moreCrops.length > 1 ? 's' : '') + ' — read them as one continuous area.' : '') + '\n' + pageCtx + '\n' : '';
     let bookCtx = '';
     if (Books.wants(question + ' ' + (c.text || ''))) { live('Looking in the readings…'); bookCtx = await Books.prompt(question + ' ' + (c.text || ''), (c.quote || '') + ' ' + blockPlain(b)); live(''); }
-    const r = await sample(lead + 'You are a tutor answering a student\'s margin comment in their lecture notes. Answer the latest question directly and briefly (under 180 words, longer only if they ask you to go through the reading); give intuition and a tiny example when it helps.' + bookCtx + (c.quote ? ' The comment is about the quoted text specifically, so focus on that part.' : '') + '\n' + docContext(5000) + '\nThe comment is on this block: ' + blockLatex(b, {}).slice(0, 1500) + '\n' + blockContext(b) + '\n\nThread so far:\n' + thread + '\n\nLatest question: ' + question + '\n\n' + FMT, Object.assign({ modelTier: 'default', onText: u => live(u.text) }, imgs ? { images: [imgs.page, imgs.crop].filter(Boolean) } : {}));
+    const r = await sample(lead + 'You are a tutor answering a student\'s margin comment in their lecture notes. Answer the latest question directly and briefly (under 180 words, longer only if they ask you to go through the reading); give intuition and a tiny example when it helps.' + bookCtx + (c.quote ? ' The comment is about the quoted text specifically, so focus on that part.' : '') + '\n' + docContext(5000) + '\nThe comment is on this block: ' + blockLatex(b, {}).slice(0, 1500) + '\n' + blockContext(b) + '\n\nThread so far:\n' + thread + '\n\nLatest question: ' + question + '\n\n' + FMT, Object.assign({ modelTier: 'default', onText: u => live(u.text) }, imgs ? { images: [imgs.page, imgs.crop].concat(moreCrops).filter(Boolean) } : {}));
     out = r.text.trim();
   } catch (e) { out = sampleErr(e); }
   fin = true; if (raf) cancelAnimationFrame(raf);
@@ -12633,7 +12869,7 @@ const ANN_SW = { yellow: '#FFD60A', green: '#5BC85A', pink: '#FF6FAE', blue: '#4
 // clicking a highlight recolours / removes it; T Text puts a text box on the page (drag ⠿ to move, A−/A+ size); Quote / Explain in the bar.
 const Ann = {
   rid: null, data: null, tool: 'select', hl: (lsGet('nb.ahl') in ANN_HL) ? lsGet('nb.ahl') : 'yellow', pen: 'ink', hist: [], inkDirty: new Set(), saveT: 0, sel: null, last: null, box: null,
-  ckey() { return Panel.slug(Panel.curCourse()); },
+  ckey() { return (Panel.reader && Panel.reader.ckey) || Panel.slug(Panel.curCourse()); }, // (the reading's own course, while one is open)
   path(rid, p) { return 'courses/' + this.ckey() + '/ann/' + rid + (p ? '~p' + p : ''); },
   empty() { return { hl: [], ink: [], box: [], tx: [] }; },
   async load(rid) {
@@ -12644,10 +12880,10 @@ const Ann = {
         if (x) { this.data.hl = x.hl || []; this.data.box = x.box || []; this.data.tx = x.tx || []; for (const p of x.inkPages || []) { const pd = await Store.db.doc(this.path(rid, p)).get(); if (pd.exists) this.data.ink = this.data.ink.concat(plainData(pd).ink || []); } }
       } else { const x = JSON.parse(lsGet('nb.ann.' + this.ckey() + '.' + rid) || 'null'); if (x) this.data = Object.assign(this.empty(), x); }
     } catch (e) {}
-    if (this.rid === rid) this.paintAll();
+    if (this.rid === rid) { this.data.box.forEach(b => this.norm(b)); this.paintAll(); this.renderCmts(); }
   },
   snap() { this.hist.push(JSON.stringify(this.data)); if (this.hist.length > 60) this.hist.shift(); },
-  undo() { const s = this.hist.pop(); if (!s) return false; const old = this.data; this.data = Object.assign(this.empty(), JSON.parse(s)); this.sel = this.last = null; this.closePop(); new Set([...old.ink, ...this.data.ink].map(k => k.p)).forEach(p => this.inkDirty.add(p)); this.save(); this.paintAll(); return true; },
+  undo() { const s = this.hist.pop(); if (!s) return false; const old = this.data; this.data = Object.assign(this.empty(), JSON.parse(s)); this.sel = this.last = null; this.closePop(); new Set([...old.ink, ...this.data.ink].map(k => k.p)).forEach(p => this.inkDirty.add(p)); this.save(); this.paintAll(); this.renderCmts(); return true; },
   save() {
     const rid = this.rid; if (!rid) return; clearTimeout(this.saveT);
     this.saveT = setTimeout(() => {
@@ -12762,7 +12998,7 @@ const Ann = {
     const n = el.querySelector('.atx[data-ak="tx:' + x.id + '"] .atxt'); if (n) setTimeout(() => n.focus(), 0);
   },
   txFont(d) { const x = this.box && this.data.tx.find(t => t.id === this.box); if (!x) return; this.snap(); x.fs = Math.max(8, Math.min(80, (x.fs || 18) + d * 3)); this.save(); this.paintAll(); },
-  remove(key) { const [k, id] = String(key).split(':'); const D = this.data; if (k === 'box') { const bx = D.box.find(x => x.id === id); if (bx) Panel.boxDelete(bx); } const arr = k === 'hl' ? D.hl : k === 'ink' ? D.ink : k === 'tx' ? (D.tx || (D.tx = [])) : D.box; const i = arr.findIndex(x => x.id === id); if (i < 0) return; this.snap(); if (k === 'ink') this.inkDirty.add(arr[i].p); arr.splice(i, 1); if (this.sel === id) this.sel = null; if (this.last === id) this.last = null; if (this.box === id) this.box = null; this.save(); this.paintAll(); this.closePop(); this.syncBar(); },
+  remove(key) { const [k, id] = String(key).split(':'); const D = this.data; if (k === 'box') { const bx = D.box.find(x => x.id === id); if (bx) Panel.boxDelete(bx); } const arr = k === 'hl' ? D.hl : k === 'ink' ? D.ink : k === 'tx' ? (D.tx || (D.tx = [])) : D.box; const i = arr.findIndex(x => x.id === id); if (i < 0) return; this.snap(); if (k === 'ink') this.inkDirty.add(arr[i].p); arr.splice(i, 1); if (this.sel === id) this.sel = null; if (this.last === id) this.last = null; if (this.box === id) this.box = null; this.save(); this.paintAll(); this.closePop(); this.syncBar(); this.renderCmts(); },
   // ---- the picture of a boxed area (for Claude)
   async crop(p, r) {
     const R = Panel.reader; if (R && R.ep) return Panel.epCrop(p, r); const el = R.els[p - 1]; let cv = el && el.querySelector('.canvasWrapper canvas');
@@ -12778,38 +13014,152 @@ const Ann = {
       const inside = []; for (const it of tc.items) { if (!it.str) continue; const [x, y] = vp.convertToViewportPoint(it.transform[4], it.transform[5]); const fx = x / vp.width, fy = y / vp.width; if (fx >= r[0] - 0.01 && fx <= r[0] + r[2] + 0.01 && fy >= r[1] - 0.005 && fy <= r[1] + r[3] + 0.03) inside.push(it.str); }
       return inside.join(' ').replace(/\s+/g, ' ').trim(); } catch (e) { return ''; }
   },
-  async ask(b, q) {
-    const R = Panel.reader; const sample = await getSample(); if (!sample) { toast('Asking Claude isn’t available in this view.'); return; }
-    b.q = q; b.ans = '…'; this.save(); this.paintAll(); this.showPop(b.id);
-    const [blob, inside, page] = await Promise.all([this.crop(b.p, b.r).catch(() => null), this.boxText(b.p, b.r), Panel.pageText(b.p - 1).then(t => t.raw).catch(() => '')]);
-    const sys = 'A student taking ' + (Panel.curCourse() || 'a course') + ' is reading "' + R.title + '", page ' + b.p + '. They drew a box around part of the page' + (blob ? ' (the picture attached shows exactly what is inside the box)' : '') + ' and ask about it. Answer about what is in the box: explain it clearly and concretely, with intuition, and connect it to the rest of the page when that helps. ' + FMT +
-      (inside ? '\n\nThe text inside the box (formulas drawn as images are not in this text — read them from the picture):\n' + inside.slice(0, 1500) : '') + (page ? '\n\nThe whole page’s text, for context:\n' + page.slice(0, 3500) : '') + '\n\nTheir question: ' + q;
-    // the side chat shows it too, with a link back to the box
-    Panel.chat = Panel.chat || []; Panel.chat.push({ role: 'user', text: '📌 p. ' + b.p + ' (boxed area): ' + q, box: b.id, rid: this.rid, t: now() }); const ans = { role: 'assistant', text: '…', box: b.id, rid: this.rid, t: now() }; Panel.chat.push(ans); Panel.render(true);
-    try {
-      const r = await sample(sys, Object.assign({ modelTier: 'default', cache: false, onText: u => { b.ans = u.text; ans.text = u.text; const pv = document.querySelector('.annpop[data-abox="' + b.id + '"] .apans'); if (pv) pv.textContent = u.text; } }, blob ? { images: [blob] } : {}));
-      b.ans = r.text.trim(); ans.text = b.ans;
-    } catch (e) { b.ans = sampleErr(e); ans.text = b.ans; }
-    this.save(); Panel.saveChat(); Panel.render(true); if (document.querySelector('.annpop[data-abox="' + b.id + '"]')) this.showPop(b.id);
+  // ---- comments on the PDF (a ▭ box, or text you selected and pressed 💬 Comment). Sophia, Nov 12: "PDF comments should look and behave
+  // like comments on typed notes". Each one is a thread like a note comment — your text, replies (yours and Claude's), highlights
+  // (c.hl) — so the notes' comment card, its highlighting and ✂ Keep work on it unchanged. Older boxes (q / ans) are turned into threads.
+  owner() { const rid = this.rid; return { id: 'pdf:' + rid, pdf: true, get comments() { return (Ann.data && Ann.rid === rid && Ann.data.box) || []; } }; },
+  cmtOf(id) { const b = this.data && this.data.box.find(x => x.id === id); return [b ? this.owner() : null, b || null]; },
+  norm(b) {
+    if (!b) return b; if (!b.created) b.created = b.t || now();
+    if (b.ans != null && !b.replies) { if (!b.text) b.text = b.q || ''; b.replies = b.ans && b.ans !== '…' ? [{ id: uid('r'), who: 'claude', text: b.ans, t: b.t || now() }] : []; delete b.ans; }
+    return b;
   },
-  // ---- the little window for a box: your comment, or the question and Claude's answer
+  cmtList() { return this.data ? this.data.box.map(b => this.norm(b)).filter(b => !b.resolved || state.showResolved).sort((a, c) => a.p - c.p || a.r[1] - c.r[1] || a.r[0] - c.r[0]) : []; },
+  pcCard(b) {
+    this.norm(b); const o = this.owner();
+    const head = '<div class="pch"><button class="lnk" data-pcgo="' + esc(b.id) + '" title="Show it on the page">p. ' + b.p + '</button><span>' + (b.sel ? '❝ selected text' : '▭ boxed area') + '</span><span class="grow"></span>' +
+      (b.kind !== 'new' ? '<button class="lnk muted" data-c="tonotes" title="Put this comment (and Claude’s answers) in your notes">→ notes</button>' : '') + '<button class="lnk muted" data-c="del" title="Delete the comment and its mark">Delete</button></div>';
+    const asked = (b.replies || []).some(r => r.who === 'claude') || !!pendingReps[b.id];
+    return cmtCard(o, b).replace('<div class="cmt', '<div class="cmt pcmt' + (asked ? ' ai-p' : '')).replace(/^(<div class="cmt[^>]*>)/, '$1' + head);
+  },
+  cmtsShown() { const c = $('rbody').querySelector('.reader .rcmts'); return !!(c && !c.hidden && c.offsetParent); },
+  // the column of comment cards beside the reading (and the card in the popup, if one is open)
+  renderCmts() {
+    const host = $('rbody').querySelector('.reader .rcmts'); const list = this.cmtList(); const n = list.filter(b => b.kind !== 'new' && !b.resolved).length;
+    const btn = $('rbody').querySelector('[data-pcb="toggle"]'); if (btn) { btn.querySelector('.pcnt').textContent = n ? String(n) : ''; btn.setAttribute('aria-pressed', String(!!(host && !host.hidden))); }
+    if (host) {
+      const want = lsGet('nb.pcmts') !== '0' && list.length > 0; if (host.hidden === want) host.hidden = !want;
+      if (want) {
+        const ae = document.activeElement; const foc = ae && ae.matches && ae.matches('.pcmt textarea') && host.contains(ae) ? { cid: ae.closest('.cmt').dataset.cid, sel: ae.matches('[data-creply]') ? '[data-creply]' : ae.matches('[data-repedit]') ? '[data-repedit]' : '[data-ctext]', a: ae.selectionStart, b: ae.selectionEnd } : null;
+        const st = host.scrollTop;
+        host.innerHTML = '<div class="pchd"><span>Comments on this reading</span><span class="grow"></span><button class="lnk muted" data-pcb="toggle" title="Hide the comments">Hide</button></div>' + list.map(b => this.pcCard(b)).join('');
+        host.scrollTop = st;
+        if (foc) { const ta = host.querySelector('.cmt[data-cid="' + foc.cid + '"] textarea' + foc.sel); if (ta) { ta.focus(); try { ta.setSelectionRange(foc.a, foc.b); } catch (e) {} } }
+        fitCmtUI(host); paintCmtHl(host); markLongCmts(host);
+      }
+    }
+    const pop = document.querySelector('.annpop.pcpop'); if (pop) { const b = this.data && this.data.box.find(x => x.id === pop.dataset.abox); if (!b) pop.remove(); else { pop.innerHTML = this.pcCard(b); fitCmtUI(pop); paintCmtHl(pop); markLongCmts(pop); } }
+  },
+  toggleCmts(on) { const host = $('rbody').querySelector('.reader .rcmts'); const cur = !!(host && !host.hidden); on = on == null ? !cur : on; lsSet('nb.pcmts', on ? '1' : '0'); if (on && !this.cmtList().length) toast('No comments on this reading yet — select text and press 💬 Comment, or drag a ▭ Box'); this.closePop(); this.renderCmts(); },
+  // a card was clicked: go to its mark on the page
+  goMark(id) { const b = this.data && this.data.box.find(x => x.id === id); const R = Panel.reader; if (!b || !R) return; Panel.goPage(b.p);
+    document.querySelectorAll('.pcmt[data-cid="' + id + '"]').forEach(c => { c.classList.add('hot'); setTimeout(() => c.classList.remove('hot'), 1200); });
+    if (b.aid && R.reg) setTimeout(() => { try { R._boxSel = b.aid; Panel.epAnn(R).selectAnnotation(b.p - 1, b.aid); } catch (e) {} }, 350); },
+  // the whole reading's text, for Claude: every page (pdf.js reads it once per reading); over ~150k characters, the pages nearest p
+  async docText(R, p, cap) {
+    cap = cap || 150000; for (let k = 0; k < 100 && !R.pdf && Panel.reader === R; k++) await new Promise(r => setTimeout(r, 150));
+    if (!R.pdf) return { text: '', n: 0 };
+    const C = this._dt || (this._dt = new Map()); const key = R.r.id + ':' + (R.r.asset || '');
+    let pages = C.get(key);
+    if (!pages) { pages = [];
+      for (let i = 0; i < R.pdf.numPages; i++) { let t = '';
+        try { const tc = R.tc[i] || (R.tc[i] = await (await R.pdf.getPage(i + 1)).getTextContent()); for (const it of tc.items) if (it.str !== undefined) t += it.str + (it.hasEOL ? '\n' : ''); } catch (e) {}
+        pages.push(t.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()); }
+      C.set(key, pages); if (C.size > 6) C.delete(C.keys().next().value); }
+    const n = pages.length; const cost = i => pages[i].length + 16; let total = 0; for (let i = 0; i < n; i++) total += cost(i);
+    let keep = new Set(pages.map((_, i) => i));
+    if (total > cap) { keep = new Set(); let used = 0; const c0 = Math.max(0, Math.min(n - 1, (p || 1) - 1));
+      for (let d = 0; d < n; d++) for (const i of d ? [c0 + d, c0 - d] : [c0]) { if (i < 0 || i >= n || keep.has(i)) continue; if (used + cost(i) > cap && keep.size) continue; keep.add(i); used += cost(i); } }
+    let out = '', skip = 0, left = cap;
+    for (let i = 0; i < n; i++) { if (!keep.has(i)) { skip++; continue; } if (skip) { out += '[… ' + skip + ' page' + (skip > 1 ? 's' : '') + ' left out …]\n'; skip = 0; }
+      const t = pages[i].slice(0, Math.max(0, left - 16)); out += '--- page ' + (i + 1) + ' ---\n' + (t || '(no text on this page)') + '\n'; left -= t.length + 16; }
+    if (skip) out += '[… ' + skip + ' page' + (skip > 1 ? 's' : '') + ' left out …]\n';
+    return { text: out, n, partial: total > cap };
+  },
+  // ask Claude in a comment's thread: the part you boxed / selected (its text and a picture of it), its page, and the whole reading
+  async ask(b, q) {
+    const R = Panel.reader; const sample = await getSample(); if (!sample || !R) { toast('Asking Claude isn’t available in this view.'); return; }
+    this.norm(b); const id = b.id, rid = this.rid; if (b.kind === 'new') b.kind = 'ask'; else if (b.kind === 'note') b.kind = 'ask';
+    const thread = [b.quote ? 'Selected text: "' + b.quote.slice(0, 1500) + '"' : '', b.text ? 'Comment: ' + b.text : ''].concat((b.replies || []).map(r => (r.who === 'claude' ? 'Claude: ' : 'Student: ') + r.text)).filter(Boolean).join('\n');
+    const rep = { id: uid('r'), who: 'claude', text: '', pending: true, t: now() }; pendingReps[id] = rep; delete cthrPos[id];
+    this.save(); Panel.boxLabel(b); this.renderCmts(); if (!this.cmtsShown() && !document.querySelector('.annpop.pcpop[data-abox="' + id + '"]')) this.showPop(id);
+    const cur = () => (this.rid === rid && this.data && this.data.box.find(x => x.id === id)) || null;
+    Panel.chat = Panel.chat || []; Panel.chat.push({ role: 'user', text: '📌 p. ' + b.p + ' (' + (b.sel ? 'selected text' : 'boxed area') + '): ' + q, box: id, rid, t: now() }); const ans = { role: 'assistant', text: '…', box: id, rid, t: now() }; Panel.chat.push(ans); Panel.render(true);
+    let fin = false, lt = 0, tm = 0;
+    const paint = () => { tm = 0; if (fin) return; lt = performance.now(); document.querySelectorAll('.pcmt .rep[data-rid="' + rep.id + '"] .rb').forEach(x => { x.innerHTML = textHtml(rep.text || '…'); }); markLongCmts(); };
+    const live = t => { if (fin) return; rep.text = t; ans.text = t; if (!tm) tm = setTimeout(paint, Math.max(0, 220 - (performance.now() - lt))); };
+    let out;
+    try {
+      live('Reading the document…');
+      const [blob, inside, page, whole] = await Promise.all([this.crop(b.p, b.r).catch(() => null), b.sel ? Promise.resolve('') : this.boxText(b.p, b.r), (async () => { for (let k = 0; k < 100 && !R.pdf && Panel.reader === R; k++) await new Promise(r => setTimeout(r, 150)); return R.pdf ? (await Panel.pageText(b.p - 1)).raw : ''; })().catch(() => ''), this.docText(R, b.p).catch(() => ({ text: '' }))]);
+      live('');
+      const what = b.sel ? 'selected a passage on page ' + b.p : 'drew a box around part of page ' + b.p;
+      const sys = 'A student taking ' + (Panel.curCourse() || 'a course') + ' is reading "' + R.title + '"' + (whole.n ? ' (' + whole.n + ' pages)' : '') + '. They ' + what + ' and wrote a comment on it' + (blob ? ' (the picture attached shows exactly that part of the page)' : '') + '. Answer their latest question about THAT part: explain it clearly and concretely, with intuition. Use the rest of the page and the whole document for context — definitions, notation and results from earlier pages, where it leads later — and say which page you use when you refer elsewhere. Keep it focused (under ~250 words unless they ask for more). ' + FMT +
+        (b.sel && b.quote ? '\n\nThe selected text:\n' + b.quote.slice(0, 4000) : '') +
+        (inside ? '\n\nThe text inside the box (formulas drawn as images are not in this text — read them from the picture):\n' + inside.slice(0, 3000) : '') +
+        (page ? '\n\nThe whole text of page ' + b.p + ':\n' + page.slice(0, 8000) : '') +
+        (whole.text ? '\n\nThe whole document' + (whole.partial ? ' (too long to include fully: the pages nearest page ' + b.p + ')' : '') + ':\n<document>\n' + whole.text + '</document>' : '') +
+        '\n\nThread so far:\n' + (thread || '(none)') + '\n\nLatest question: ' + q;
+      const r = await sample(sys, Object.assign({ modelTier: 'default', cache: false, onText: u => live(u.text) }, blob ? { images: [blob] } : {}));
+      out = r.text.trim();
+    } catch (e) { out = sampleErr(e); }
+    fin = true; clearTimeout(tm); delete pendingReps[id];
+    const bb = cur(); if (bb) { bb.replies = (bb.replies || []).concat([{ id: rep.id, who: 'claude', text: out, t: rep.t }]); this.save(); } else toast('The comment was removed before Claude finished.');
+    ans.text = out; Panel.saveChat(); Panel.render(true); this.renderCmts();
+  },
+  // ---- the comment card for one mark: in the column beside the reading when it's open, otherwise in a popup next to the mark
   closePop() { document.querySelectorAll('.annpop').forEach(x => x.remove()); if (this.sel) { this.last = this.sel; this.sel = null; this.paintAll(); } }, // (the highlight stays the one Quote / Explain use)
+  dismissPop() { const p = document.querySelector('.annpop.pcpop'); const b = p && this.data && this.data.box.find(x => x.id === p.dataset.abox); this.closePop(); if (b && b.kind === 'new' && !b.text && !(b.replies || []).length && !pendingReps[b.id] && !(cmtDrafts['e:' + b.id] || '').trim()) { if (state.editingCmt === b.id) state.editingCmt = null; this.remove('box:' + b.id); } },
   showPop(id, edit) {
-    this.closePop(); const b = this.data.box.find(x => x.id === id); const R = Panel.reader; if (!b || !R) return; const el = R.els[b.p - 1]; if (!el && !R.ep) return;
-    const pop = document.createElement('div'); pop.className = 'annpop'; pop.dataset.abox = id;
-    if (R.ep && !(b.kind === 'ask' && b.ans && edit !== 'ask')) { const asking = edit === 'ask' || (b.kind === 'new' && lsGet('nb.boxask') === '1');
-      pop.innerHTML = '<div class="aph">▭ ' + (b.kind === 'new' ? 'New box' : 'Your comment') + ' · p. ' + b.p + '</div><textarea class="apt" rows="3" placeholder="Write a comment… (tick Ask Claude to send it to Claude as a question)">' + esc(edit === 'ask' ? (b.q || '') : (b.text || '')) + '</textarea>' +
-        '<label class="apck"><input type="checkbox" class="apask"' + (asking ? ' checked' : '') + '> Ask Claude about this part</label>' +
-        '<div class="row"><button class="btn go" data-ap="boxsave">Save</button><button class="lnk muted" data-ap="del">' + (b.kind === 'new' ? 'Cancel' : 'Delete') + '</button><span class="grow"></span>' + (b.kind === 'new' ? '' : '<button class="lnk" data-ap="tonotes">Put in my notes</button>') + '</div>'; }
-    else if (b.kind === 'note' || edit === 'note') pop.innerHTML = '<div class="aph">✎ Your comment · p. ' + b.p + '</div><textarea class="apt" rows="3" placeholder="Write a comment about this part…">' + esc(b.text || '') + '</textarea><div class="row"><button class="btn go" data-ap="savenote">Save</button><button class="lnk muted" data-ap="del">Delete</button><span class="grow"></span><button class="lnk" data-ap="tonotes">Put in my notes</button></div>';
-    else if (!b.ans || edit === 'ask') pop.innerHTML = '<div class="aph">✦ Ask Claude about this part · p. ' + b.p + '</div><textarea class="apt" rows="2" placeholder="e.g. Explain this. Why is this step true?">' + esc(b.q || 'Explain this.') + '</textarea><div class="row"><button class="btn go" data-ap="ask">Ask</button><button class="lnk muted" data-ap="del">Delete</button></div>';
-    else pop.innerHTML = '<div class="aph">✦ ' + esc(b.q || '') + ' · p. ' + b.p + '</div><div class="apans view">' + (b.ans === '…' ? '…' : textHtml(b.ans)) + '</div><div class="row"><button class="lnk" data-ap="again">Ask again</button><button class="lnk muted" data-ap="del">Delete</button><span class="grow"></span><button class="lnk" data-ap="tonotes">Put in my notes</button></div>';
-    document.body.appendChild(pop);
-    if (R.ep) { this.place(pop); const t0 = pop.querySelector('.apt'); if (t0) { t0.focus(); t0.setSelectionRange(t0.value.length, t0.value.length); } return; }
-    const rb = el.getBoundingClientRect(); const x = rb.left + (b.r[0] + b.r[2]) * rb.width, y = rb.top + b.r[1] * rb.width;
-    const w = pop.offsetWidth, h = pop.offsetHeight; let left = x + 10; if (left + w > innerWidth - 8) left = Math.max(8, rb.left + b.r[0] * rb.width - w - 10); let top = Math.min(innerHeight - h - 8, Math.max(8, y));
-    pop.style.left = left + 'px'; pop.style.top = top + 'px';
-    const t = pop.querySelector('.apt'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); }
+    this.closePop(); const b = this.data && this.data.box.find(x => x.id === id); const R = Panel.reader; if (!b || !R) return; this.norm(b);
+    if (b.kind === 'new' || edit === 'ask' || edit === 'note') { state.editingCmt = b.id; state.editingRep = null; }
+    this.renderCmts();
+    let card;
+    if (this.cmtsShown()) { card = $('rbody').querySelector('.rcmts .pcmt[data-cid="' + id + '"]'); if (card) { card.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); card.classList.add('hot'); setTimeout(() => card.classList.remove('hot'), 1200); } }
+    else { const pop = document.createElement('div'); pop.className = 'annpop pcpop'; pop.dataset.abox = id; pop.innerHTML = this.pcCard(b); document.body.appendChild(pop); fitCmtUI(pop); paintCmtHl(pop); markLongCmts(pop); this.place(pop); card = pop.querySelector('.pcmt'); }
+    const t0 = card && card.querySelector('textarea[data-ctext]'); if (t0) { t0.focus(); t0.setSelectionRange(t0.value.length, t0.value.length); }
+  },
+  // the buttons of a PDF comment card (the same ones as on a note's comment)
+  cardAction(k, card, act) {
+    const id = card.dataset.cid; const b = this.data && this.data.box.find(x => x.id === id); if (!b) return; const o = this.owner();
+    const toc = card.querySelector('[data-ctoc]'); const toClaude = !!(toc && toc.checked);
+    const after = () => { this.save(); Panel.boxLabel(b); this.renderCmts(); };
+    if (k === 'keephl') { keepHighlights(o, b); return; }
+    if (k === 'del') { if (state.editingCmt === id) state.editingCmt = null; this.remove('box:' + id); return; }
+    if (k === 'tonotes') { const R = Panel.reader; const body = [b.quote ? '> ' + b.quote : '', b.text || ''].concat((b.replies || []).map(r => (r.who === 'claude' ? '✦ ' : '') + r.text)).filter(Boolean).join('\n\n');
+      const aft = state.editing || selIds().pop() || state.order[state.order.length - 1]; if (state.editing) stopEdit();
+      insertAfter(aft, 'box:read', Object.assign({ title: R.title + ', p. ' + b.p, text: body }, state.asideMode ? { aside: { t: now() } } : {}), false); toast('Put in your notes'); return; }
+    if (k === 'edit') { state.editingCmt = id; state.editingRep = null; delete cmtDrafts['e:' + id]; this.renderCmts(); const ta = card.isConnected ? card.querySelector('textarea[data-ctext]') : document.querySelector('.pcmt[data-cid="' + id + '"] textarea[data-ctext]'); if (ta) ta.focus(); return; }
+    if (k === 'redit' || k === 'rsave' || k === 'rcancel' || k === 'rdel') {
+      const rk = act.dataset.rk; const r = repOf(b, rk); if (!r) return;
+      if (k === 'redit') { state.editingRep = { cid: id, rk }; state.editingCmt = null; }
+      if (k === 'rsave') { const ta = card.querySelector('.rep[data-rk="' + rk + '"] textarea[data-repedit]'); const v = ta ? ta.value.trim() : r.text; this.snap();
+        if (v) { if (v !== r.text) { r.text = v; r.edited = now(); } } else b.replies = b.replies.filter(x => x !== r); state.editingRep = null; delete cmtDrafts['r:' + id + ':' + rk]; }
+      if (k === 'rcancel') { state.editingRep = null; delete cmtDrafts['r:' + id + ':' + rk]; }
+      if (k === 'rdel') { this.snap(); b.replies = b.replies.filter(x => x !== r); if (state.editingRep && state.editingRep.cid === id) state.editingRep = null; }
+      after(); if (k === 'redit') { const ta = document.querySelector('.pcmt[data-cid="' + id + '"] textarea[data-repedit]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } } return;
+    }
+    if (k === 'save') { const ta = card.querySelector('textarea[data-ctext]'); const v = ta ? ta.value.trim() : ''; delete cmtDrafts['e:' + id]; state.editingCmt = null;
+      if (!v && !toClaude && !(b.replies || []).length) { this.remove('box:' + id); this.renderCmts(); return; }
+      this.snap(); b.text = v; if (b.kind === 'new') b.kind = toClaude ? 'ask' : 'note'; after();
+      if (toClaude) this.ask(b, v || (b.quote ? 'Explain this: "' + b.quote.slice(0, 600) + '"' : 'Explain this part.')); return; }
+    if (k === 'cancel') { delete cmtDrafts['e:' + id]; state.editingCmt = null; if (b.kind === 'new' && !b.text) { this.remove('box:' + id); this.renderCmts(); return; } this.renderCmts(); return; }
+    if (k === 'resolve') { this.snap(); b.resolved = !b.resolved; after(); return; }
+    if (k === 'reply') { const inp = card.querySelector('[data-creply]'); const v = inp ? inp.value.trim() : '';
+      if (!v && !toClaude) { if (inp) inp.focus(); return; } delete cmtDrafts[id];
+      if (v) { this.snap(); b.replies = (b.replies || []).concat([{ id: uid('r'), who: 'me', text: v, t: now() }]); }
+      after(); if (toClaude) this.ask(b, v || b.text || (b.quote ? 'Explain this: "' + b.quote.slice(0, 600) + '"' : 'Explain this part.')); return; }
+  },
+  // 💬 Comment on the text selected in the PDF: a purple highlight on it, and a comment card (tick ✦ Send to Claude to ask about it)
+  async fromSelection() {
+    const R = Panel.reader; if (!R || !R.reg || !this.data) return; const s = await Panel.epSelection(R); if (!s) { toast('Select some text in the PDF first (or drag a ▭ Box)'); return; }
+    let f = null; try { const P = R.reg.getPlugin('selection').provides(); const S = P.forDocument ? P.forDocument(R.docId) : P; const all = S.getFormattedSelection ? S.getFormattedSelection() : null; f = all && all.find(x => x && x.rect) || null; try { S.clear && S.clear(); } catch (e) {} } catch (e) {}
+    const pi = f ? f.pageIndex : (s.p || R.page) - 1; const sz = Panel.epPageSize(R, pi); const W = sz ? sz.width : 612;
+    const rc = f ? f.rect : { origin: { x: W * 0.1, y: W * 0.1 }, size: { width: W * 0.8, height: 14 } };
+    const aid = crypto.randomUUID ? crypto.randomUUID() : uid('a');
+    if (f) try { Panel.epAnn(R).createAnnotation(pi, { type: R.EP.PdfAnnotationSubtype.HIGHLIGHT, id: aid, pageIndex: pi, rect: rc, segmentRects: f.segmentRects || [rc], strokeColor: '#C6A2FF', color: '#C6A2FF', opacity: 0.5, contents: '', flags: ['print'], created: new Date() }); } catch (e) { console.warn('comment mark', e); }
+    const b = { id: uid('b'), p: pi + 1, r: [rc.origin.x / W, rc.origin.y / W, rc.size.width / W, rc.size.height / W].map(v => +v.toFixed(5)), kind: 'new', sel: true, quote: s.t.slice(0, 4000), t: now(), created: now(), aid: f ? aid : null };
+    this.snap(); this.data.box.push(b); this.save(); this.showPop(b.id);
   },
   popAction(k, pop) {
     const id = pop.dataset.abox; const b = this.data.box.find(x => x.id === id); if (!b) return this.closePop();
@@ -12899,10 +13249,10 @@ document.addEventListener('click', e => {
   const ac = e.target.closest && e.target.closest('[data-acol]'); if (ac) { if (Ann.tool === 'pen' || Ann.tool === 'text' || Ann.box) Ann.pen = ac.dataset.acol.replace('p:', ''); document.querySelectorAll('[data-acol^="p:"]').forEach(x => x.setAttribute('aria-pressed', String(x === ac))); return; }
   const ah = e.target.closest && e.target.closest('[data-ahl]'); if (ah) { Ann.hl = ah.dataset.ahl; Ann.highlight(ah.dataset.ahl); const qb = document.querySelector('.reader .quotebtn'); if (qb) qb.hidden = true; return; }
   const gb = e.target.closest && e.target.closest('[data-gobox]'); if (gb) { Ann.goBox(gb.dataset.gobox); return; }
-  if (!e.target.closest('.annpop') && !(e.target.closest && e.target.closest('.reader .rview'))) Ann.closePop();
+  if (!e.target.closest('.annpop,.selbub') && !(e.target.closest && e.target.closest('.reader .rview'))) Ann.dismissPop();
 }, true);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.querySelector('.annpop')) { e.preventDefault(); e.stopPropagation(); Ann.closePop(); return; }
+  if (e.key === 'Escape' && document.querySelector('.annpop')) { e.preventDefault(); e.stopPropagation(); Ann.dismissPop(); return; }
   if (e.key === 'Escape' && document.body.classList.contains('readfull') && !(e.target.closest && e.target.closest('.rfind'))) { e.preventDefault(); e.stopPropagation(); Ann.full(false); return; }
   const inField = e.target.closest && e.target.closest('textarea,input,[contenteditable]');
   if (!inField && Panel.reader && (e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && (document.body.classList.contains('readfull') || Panel._overReader)) { if (Ann.undo()) { e.preventDefault(); e.stopPropagation(); } return; }
@@ -12940,6 +13290,15 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Backspace' || e.key === 'Delete') { e.stopPropagation(); }
 }, true);
 document.addEventListener('selectionchange', () => { if (Panel.reader) { clearTimeout(Panel._sc); Panel._sc = setTimeout(() => Panel.syncBar(), 60); } });
+// the PDF comment cards (in the column beside the reading, or the popup): their buttons, and a click on a card shows its mark
+document.addEventListener('click', e => {
+  const pb = e.target.closest && e.target.closest('[data-pcb]'); if (pb && Panel.reader) { e.preventDefault(); if (pb.dataset.pcb === 'toggle') Ann.toggleCmts(); else if (pb.dataset.pcb === 'sel') Ann.fromSelection(); return; }
+  const card = e.target.closest && e.target.closest('.cmt.pcmt'); if (!card || !Ann.data) return;
+  const go = e.target.closest('[data-pcgo]'); if (go) { Ann.goMark(go.dataset.pcgo); return; }
+  const act = e.target.closest('[data-c]'); if (act) { Ann.cardAction(act.dataset.c, card, act); return; }
+  const sl = getSelection(); if (!e.target.closest('button,input,textarea,label,a,select') && (!sl || sl.isCollapsed) && card.closest('.rcmts')) Ann.goMark(card.dataset.cid);
+});
+document.addEventListener('mousedown', e => { if (e.target.closest && e.target.closest('[data-pcb="sel"]')) e.preventDefault(); }, true); // (keeps the PDF's selection)
 Object.defineProperty(window.__nb, 'Ann', { get: () => Ann });
 
 // ---------------------------------------------------------------- review (flashcards)
@@ -13037,6 +13396,17 @@ function improveMarks(host, reg) {
   }, true);
   const end = e => { if (press && e.pointerId === press.id) { if (press.drag) { e.preventDefault(); e.stopPropagation(); const d = press.drag; if (d.raf) { cancelAnimationFrame(d.raf); d.raf = 0; } if (d.dx || d.dy) try { ann().moveAnnotation(d.page, d.aid, { x: d.dx, y: d.dy }); } catch (x) {} } press = null; } };
   root.addEventListener('pointerup', end, true); root.addEventListener('pointercancel', end, true);
+  // A text selection dragged from one page onto the next never ended (Nov 12, Sophia: "highlighting across pages is broken"): EmbedPDF
+  // keeps the "dragging" flag per page, so letting go on another page (or off the pages) never finishes the selection, and the
+  // Highlight / Underline tool never made its marks. When the pointer is let go and the selection is still "being dragged", finish it
+  // ourselves: the tool then makes one mark on each page of the selection.
+  const finishSel = () => setTimeout(() => {
+    if (!host.isConnected) return;
+    try { const SP = reg.getPlugin('selection'); const id = dm().getActiveDocumentId(); if (!SP || !SP.selecting || !SP.selecting.get(id) || typeof SP.endSelection !== 'function') return;
+      let mode; try { mode = reg.getPlugin('interaction-manager').provides().forDocument(id).getActiveMode(); } catch (x) {}
+      SP.endSelection(id, mode); } catch (x) {}
+  }, 0);
+  addEventListener('pointerup', finishSel, true); addEventListener('pointercancel', finishSel, true);
   // Backspace / Delete
   window.addEventListener('keydown', e => {
     if (!host.isConnected || (e.key !== 'Backspace' && e.key !== 'Delete')) return;
@@ -13045,6 +13415,7 @@ function improveMarks(host, reg) {
     e.preventDefault(); e.stopPropagation();
     const a = ann(); for (const s of sel) try { a.deleteAnnotation(s.object.pageIndex, s.object.id); } catch (x) {}
   }, true);
+  return () => { removeEventListener('pointerup', finishSel, true); removeEventListener('pointercancel', finishSel, true); };
 }
 
 const Panel = {
@@ -13068,18 +13439,20 @@ const Panel = {
   closeScr() { Scratch.flush(); this.scr = false; document.body.classList.remove('scrfull'); const fb = $('scrFull'); if (fb) fb.textContent = '⛶ Full screen'; this.sync(); },
   toggle(tab) { if (tab === 'scratch') return this.scr ? this.closeScr() : this.openScr(); if (this.tab === tab) this.close(); else this.open(tab); },
   curCourse() { const m = state.docs.get(state.docId); return this.course != null ? this.course : (m && m.course) || ''; },
-  onDocChange() { Scratch.flush(); this.course = null; this.chat = null; if (this.tab) { this.loadCourse(); this.render(); } if (this.scr) Scratch.render($('rbody2')); setTimeout(outlineBtn, 300); },
+  onDocChange() { Scratch.flush(); const R0 = this.reader; this.course = null; if (R0 && R0.ckey && R0.ckey !== this.slug(this.curCourse())) this.course = R0.course; /* a reading stays on its course while it's open */ this.chat = null; if (this.tab) { this.loadCourse(); this.render(); } if (this.scr) Scratch.render($('rbody2')); setTimeout(outlineBtn, 300); },
   async loadCourse() {
     const c = this.curCourse(); const key = this.slug(c);
-    if (this._loaded === key) return; this._loaded = key; this.readings = [];
+    if (this._loaded === key) return this._loadP; this._loaded = key; this.readings = []; this._readsOk = false;
+    let done; this._loadP = new Promise(r => { done = r; });
     try {
       if (Store.mode === 'db') { const d = await Store.db.doc('courses/' + key).get(); this.readings = (d.exists && plainData(d).readings) || []; }
       else this.readings = JSON.parse(lsGet('nb.read.' + key) || '[]');
     } catch (e) {}
-    this.render();
+    if (this._loaded === key) { this._readsOk = true; SideReads.set(key, this.readings); }
+    done(); this.render();
   },
   saveReadings() {
-    const c = this.curCourse(); const key = this.slug(c);
+    const c = this.curCourse(); const key = this.slug(c); SideReads.set(key, this.readings);
     if (Store.mode === 'db') Store.write('course:' + key, () => Store.db.doc('courses/' + key).set({ name: c, readings: this.readings, updated: now() }));
     else { lsSet('nb.read.' + key, JSON.stringify(this.readings)); setSave('ok'); }
   },
@@ -13112,7 +13485,7 @@ const Panel = {
     if (this.tab === 'note') { $('rtitle').textContent = 'Side by side'; return SideNote.render(host); }
     if (this.tab === 'read') {
       if (this.reader) return this.renderReader();
-      host.innerHTML = '<div class="rpad">' + (this.readings.length ? this.readings.map(r => '<div class="ritem"><button class="docitem" data-r="' + esc(r.id) + '"><b>' + (r.kind === 'link' ? '🔗 ' : '📄 ') + esc(r.title) + '</b><span>' + esc(r.kind === 'link' ? r.url : (r.pages ? r.pages + ' pages · ' : '') + 'PDF') + '</span></button><button class="more" data-rdel="' + esc(r.id) + '" aria-label="Remove reading">✕</button></div>').join('') : '<p class="hint">No readings for this course yet. Add the course’s PDFs (the book, lecture notes) to read them next to your notes, or save links to course websites.</p>') +
+      host.innerHTML = '<div class="rpad">' + (this.readings.length ? this.readings.map(r => '<div class="ritem"><button class="docitem" data-r="' + esc(r.id) + '"><b>' + (r.kind === 'link' ? '🔗 ' : '📄 ') + esc(r.title) + '</b><span>' + esc(r.kind === 'link' ? r.url : (r.pages ? r.pages + ' pages · ' : '') + 'PDF') + '</span></button>' + (r.kind === 'link' ? '' : '<button class="more" data-rconv="' + esc(r.id) + '" title="Convert to typed notes (Claude)" aria-label="Convert to typed notes">⇢</button>') + '<button class="more" data-rdel="' + esc(r.id) + '" aria-label="Remove reading">✕</button></div>').join('') : '<p class="hint">No readings for this course yet. Add the course’s PDFs (the book, lecture notes) to read them next to your notes, or save links to course websites.</p>') +
         '<div class="row" style="margin-top:10px"><button class="btn go" id="addPdf">+ Add PDF</button><button class="btn" id="addLink">+ Add link</button></div><input type="file" id="pdfIn" accept="application/pdf" hidden>' +
         '<p class="hint" style="margin-top:12px">Websites can’t be shown inside this page, so links open in a new tab. Tip: to read a website here, save it as PDF from your browser and add the PDF.</p></div>';
       return;
@@ -13173,11 +13546,20 @@ const Panel = {
   // insert, forms, redaction, its comments, rotating marks and the menu under a selected mark are switched off. The notebook adds
   // Quote / Explain, ▭ Box (comment on an area, or ask Claude about it; the box is drawn on the page) and full screen. Marks are saved
   // INTO a copy of the PDF (r.ann); the original upload is kept. PDF.js stays loaded only to read the pages' text for Claude.
+  // a reading picked in the left list: the panel shows that course's readings and opens it in the reader
+  async openReading(course, rid) {
+    const c = course === 'No course' ? '' : (course || '');
+    if (this.reader && this.reader.r && this.reader.r.id === rid) { if (this.tab !== 'read') this.open('read'); return; }
+    if (this.slug(this.curCourse()) !== this.slug(c)) this.course = c;
+    this.tab = 'read'; this.sync(); await this.loadCourse();
+    const r = this.readings.find(x => x.id === rid); if (!r) { this.render(); toast('Couldn’t find that reading'); return; }
+    await this.openReader(r);
+  },
   async openReader(r) {
     if (r.kind === 'link') { window.open(r.url, '_blank', 'noopener'); return; }
     this.closeReader();
-    this.reader = { r, title: r.title, page: +(lsGet('nb.rp.' + r.id) || 1), pdf: null, tc: [], txt: [], els: [], sizes: [], q: '', ep: true };
-    const R = this.reader; this.renderReader(); Ann.load(r.id);
+    this.reader = { r, title: r.title, page: +(lsGet('nb.rp.' + r.id) || 1), pdf: null, tc: [], txt: [], els: [], sizes: [], q: '', ep: true, course: this.curCourse(), ckey: this.slug(this.curCourse()) };
+    const R = this.reader; this.renderReader(); Ann.load(r.id); renderSide();
     try {
       const buf = await (await fetch(BLOB(r.ann || r.asset))).arrayBuffer(); if (this.reader !== R) return;
       await this.mountEP(R, buf.slice(0));
@@ -13187,7 +13569,7 @@ const Panel = {
   epSay(R, msg) { const L = $('epLayer'); if (L && this.reader === R) L.innerHTML = '<p class="hint" style="padding:12px">' + esc(msg) + '</p>'; },
   closeReader() {
     const R = this.reader; if (!R) return; Ann.closePop(); if (document.body.classList.contains('readfull')) Ann.full(false); Ann.rid = null; Ann.data = null;
-    this.reader = null; this.syncEp();
+    this.reader = null; this.syncEp(); setTimeout(renderSide, 0);
     const done = () => { (R.off || []).forEach(f => { try { f(); } catch (e) {} }); try { if (R.host) R.host.remove(); } catch (e) {} try { if (R.pdf) R.pdf.destroy(); } catch (e) {} };
     if (R.dirty) this.saveMarks(R).finally(done); else done();
   },
@@ -13197,8 +13579,10 @@ const Panel = {
       const T = (id, svg, title) => '<button class="ib et" data-et="' + id + '" aria-pressed="false" title="' + title + '">' + svg + '</button>';
       host.innerHTML = '<div class="reader ep"><div class="rtool"><button class="ib" data-rd="back" title="All readings">←</button><b class="rname"></b><span class="grow"></span>' +
         '<button class="rb" data-rd="quote" title="Quote the text you selected in the PDF into your notes">❝ Quote</button><button class="rb" data-rd="askq" title="Ask Claude to explain the text you selected in the PDF">✦ Explain</button>' +
+        '<button class="rb" data-pcb="sel" title="Comment on the text you selected in the PDF (tick ✦ Send to Claude to ask about it — Claude reads the selection, its page and the whole reading)">💬 Comment</button>' +
         '<button class="ib at" data-rd="box" aria-pressed="false" title="Box: drag around a part of the page to comment on it (tick “Ask Claude” to ask about it)">▭ Box</button>' +
         '<button class="ib" data-rd="ask" title="Ask Claude about this page">✦ Page</button>' +
+        '<button class="ib" data-rd="conv" title="Convert this reading into typed notes (a new note in this course, written by Claude)">⇢ Notes</button>' +
         '<button class="ib" data-rd="full" aria-pressed="false" title="Full screen with Claude beside the reading">⛶</button></div>' +
         '<div class="rann epbar">' +
         T('highlight', '<svg viewBox="0 0 18 18"><rect x="2" y="3" width="14" height="12" rx="2" fill="var(--ehl,#FFE14D)"/><path d="M6 13 9 5l3 8M7.2 10.3h3.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>', 'Highlight — select text') +
@@ -13208,14 +13592,14 @@ const Panel = {
         T('freeText', '<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4.5V3h10v1.5M9 3v12M7 15h4"/></svg>', 'Text box — click on the page and type') +
         '<span class="rsep"></span><span class="ecols"></span>' +
         '<span class="efs" hidden><button class="ib narrowpad" data-efs="-1" title="Smaller text">A−</button><b class="efsv" title="Text size">14</b><button class="ib narrowpad" data-efs="1" title="Bigger text">A+</button></span><span class="grow"></span>' +
-        '<button class="ib narrowpad" data-rd="zo" title="Zoom out (or pinch / Ctrl + scroll)">−</button><button class="ib narrowpad" data-rd="zi" title="Zoom in">+</button></div>' +
-        '<div class="rview ep"></div></div>';
+        '<button class="ib narrowpad" data-rd="zo" title="Zoom out (or pinch / Ctrl + scroll)">−</button><button class="ib narrowpad" data-rd="zi" title="Zoom in">+</button><button class="ib narrowpad" data-pcb="toggle" aria-pressed="false" title="Comments on this reading (show / hide)">🗨<span class="pcnt"></span></button></div>' +
+        '<div class="rvrow"><div class="rview ep"></div><div class="rcmts" hidden></div></div></div>';
       const rd = host.querySelector('.reader'); rd.addEventListener('pointerenter', () => { this._overReader = true; }); rd.addEventListener('pointerleave', () => { this._overReader = false; });
       rd.addEventListener('mousedown', e => { if (e.target.closest('.epbar')) e.preventDefault(); }); // (keeps the text you selected in the PDF)
       this.epBar();
     }
     host.querySelector('.rname').textContent = R.title;
-    this.syncEp();
+    Ann.renderCmts(); this.syncEp();
   },
   // the viewer lives in a layer of the panel laid over the reader's spot (moving it in the page would restart it), shown only while
   // the reading is on screen
@@ -13241,7 +13625,7 @@ const Panel = {
     if (this.reader !== R) return;
     R.docId = dm.getActiveDocumentId();
     try { const A = reg.getPlugin('annotation').provides(); for (const t of A.getTools()) A.addTool({ ...t, interaction: { ...(t.interaction || {}), isRotatable: false } }); } catch (e) {} // no rotating marks
-    improveMarks(host, reg);
+    { const un = improveMarks(host, reg); if (un) (R.off = R.off || []).push(un); }
     try { reg.getPlugin('commands').provides().execute('mode:annotate'); } catch (e) {} // the markup tools are always there
     try { const st = document.createElement('style'); st.textContent = '[data-epdf-i="main-toolbar"],[data-epdf-i="annotation-toolbar"],[data-epdf-i="annotation"]>.bg-bg-elevated{display:none!important}'; /* the last one: the empty menu box under a selected mark */ host.shadowRoot.appendChild(st); } catch (e) {} // our bar has the tools
     try { const A0 = reg.getPlugin('annotation').provides(); A0.setToolDefaults('ink', { strokeWidth: 2 }); A0.setToolDefaults('inkHighlighter', { strokeWidth: 12, opacity: 0.5 });
@@ -13379,7 +13763,7 @@ const Panel = {
     if (b) { b.aid = o.id; Ann.save(); } return b || null;
   },
   boxDelete(b) { const R = this.reader; if (!R || !R.reg || !b) return; try { const A = this.epAnn(R); const o = (A.getAnnotationById ? A.getAnnotationById(b.aid) : null); A.deleteAnnotation(b.p - 1, b.aid); } catch (e) {} },
-  boxLabel(b) { const R = this.reader; if (!R || !R.reg || !b || !b.aid) return; try { this.epAnn(R).updateAnnotation(b.p - 1, b.aid, { contents: b.kind === 'note' ? (b.text || '') : ('✦ ' + (b.q || '')) }); } catch (e) {} },
+  boxLabel(b) { const R = this.reader; if (!R || !R.reg || !b || !b.aid) return; try { this.epAnn(R).updateAnnotation(b.p - 1, b.aid, { contents: (b.kind === 'ask' ? '✦ ' : '') + (b.text || b.q || '') }); } catch (e) {} },
   async epCrop(p, r) { // a picture of part of a page, from EmbedPDF
     const R = this.reader; const sz = this.epPageSize(R, p - 1); const W = sz ? sz.width : 612;
     const rect = { origin: { x: r[0] * W, y: r[1] * W }, size: { width: r[2] * W, height: r[3] * W } };
@@ -13409,8 +13793,8 @@ const Panel = {
     R = R || this.reader; if (!R || !R.reg) return null; const P = R.reg.getPlugin('selection'); if (!P) return null; const S0 = P.provides(); const S = S0.forDocument ? S0.forDocument(R.docId) : S0;
     let t = ''; try { t = await new Promise(res => { const k = S.getSelectedText(); k && k.wait ? k.wait(a => res((a || []).join('\n')), () => res('')) : res(''); }); } catch (e) {}
     t = String(t || '').replace(/\s+/g, ' ').trim(); if (!t) return null;
-    let p = R.page; try { const f = S.getFormattedSelection ? S.getFormattedSelection() : null; if (f && f[0] && f[0].pageIndex != null) p = f[0].pageIndex + 1; } catch (e) {}
-    return { t, p };
+    let p = R.page, p2 = 0; try { const f = S.getFormattedSelection ? S.getFormattedSelection() : null; if (f && f[0] && f[0].pageIndex != null) { p = f[0].pageIndex + 1; p2 = f[f.length - 1].pageIndex + 1; } } catch (e) {}
+    return { t, p, p2: p2 > p ? p2 : 0 }; // (p2: the last page, when the selection runs onto the next pages)
   },
   // stand-ins for the old PDF.js reader's hooks (other code still calls some of them)
   layoutPages() { this.syncEp(); }, setZoom() {}, trackPage() {}, setTool() {}, syncBar() {}, closeHlPop() {}, highlightSel() {}, hasSel() { return false; }, endInk() {},
@@ -13439,7 +13823,7 @@ const Panel = {
   async quoteSelection(explain) {
     const R = this.reader; if (!R) return; const s = await this.epSelection(R);
     if (!s) { toast('Select some text in the PDF first'); return; }
-    const src = R.title + ', p. ' + (s.p || R.page);
+    const src = R.title + (s.p2 ? ', pp. ' + s.p + '–' + s.p2 : ', p. ' + (s.p || R.page));
     if (explain) { if (!document.body.classList.contains('readfull')) this.open('chat'); this.send('Explain this passage from "' + src + '": "' + s.t.slice(0, 1200) + '"'); return; }
     const after = state.editing || selIds().pop() || state.order[state.order.length - 1];
     if (state.editing) stopEdit();
@@ -13447,6 +13831,80 @@ const Panel = {
     toast('Quoted into your notes');
   }
 };
+// ---- ✦ Convert a PDF reading into typed notes (Nov 12, Sophia). A new note in the same course; Claude reads a few pages at a time
+// (their text AND a picture of each page, for the math and the figures) and writes them as the notebook's blocks. The blocks arrive
+// while you watch; Stop keeps what is done. The reading itself (and your marks on it) is not changed.
+async function convertReading(r) {
+  if (!r || r.kind === 'link') return;
+  const sample = await getSample(); if (!sample) { toast('Asking Claude isn’t available in this view.'); return; }
+  let pdf; try { await pdfjsReady(); pdf = await pdfjsLib.getDocument({ data: new Uint8Array(await (await fetch(BLOB(r.asset || r.ann))).arrayBuffer()) }).promise; } catch (e) { toast('Couldn’t open this PDF'); return; }
+  const N = pdf.numPages; const cur = Panel.reader && Panel.reader.r === r ? Panel.reader.page : 1;
+  const st0 = lsGet('nb.cvStyle') || 'faithful';
+  const m = modal('<div class="cvdlg" style="width:min(470px,calc(100vw - 48px))"><b>✦ Convert “' + esc(r.title) + '” to notes</b>' +
+    '<p class="hint" style="margin:4px 0 10px">Claude reads the pages (text and pictures, so math and figures come through) and writes a new typed note in this course. The PDF stays as it is.</p>' +
+    '<div class="cvrow"><span>Pages</span><input type="number" class="inlinein" data-cv="p0" min="1" max="' + N + '" value="1"> – <input type="number" class="inlinein" data-cv="p1" min="1" max="' + N + '" value="' + N + '"><span class="hint">of ' + N + '</span>' + (cur > 1 ? '<button class="lnk muted" data-cv="here">from p. ' + cur + '</button>' : '') + '</div>' +
+    '<div class="cvrow"><span>Style</span><label><input type="radio" name="cvst" value="faithful"' + (st0 !== 'condensed' ? ' checked' : '') + '> Faithful lecture notes</label><label><input type="radio" name="cvst" value="condensed"' + (st0 === 'condensed' ? ' checked' : '') + '> Condensed study notes</label></div>' +
+    '<div class="cvrow"><span>Claude</span>' + aiModelPicker() + '</div>' +
+    '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:12px"><button class="btn" data-x="cancel">Cancel</button><button class="btn go" data-cv="go">Convert</button></div></div>');
+  const q = (k) => m.querySelector('[data-cv="' + k + '"]');
+  const hb = q('here'); if (hb) hb.onclick = () => { q('p0').value = cur; };
+  const go = await new Promise(res => { q('go').onclick = () => res(true); new MutationObserver((_, o) => { if (!m.isConnected) { o.disconnect(); res(false); } }).observe(document.body, { childList: true }); });
+  if (!go) { pdf.destroy(); return; }
+  let p0 = Math.max(1, Math.min(N, Math.round(+q('p0').value || 1))), p1 = Math.max(1, Math.min(N, Math.round(+q('p1').value || N))); if (p1 < p0) [p0, p1] = [p1, p0];
+  const style = (m.querySelector('input[name="cvst"]:checked') || {}).value === 'condensed' ? 'condensed' : 'faithful'; lsSet('nb.cvStyle', style);
+  const pref = aiModelRead(m); m.remove();
+  // the new note, opened with a first line saying where it came from
+  const src = state.docs.get(state.docId); const course = Panel.curCourse();
+  const nm = { id: uid('d'), title: r.title + (style === 'condensed' ? ' — study notes' : ' — notes'), course, created: now(), updated: now(), fromReading: r.id };
+  if (src && !src.trashed && (src.course || '') === course && src.section) nm.section = src.section;
+  state.docs.set(nm.id, nm); Store.saveDoc(nm);
+  const head = newBlock('p', { text: '*From the reading “' + r.title + '”, ' + (p0 === p1 ? 'p. ' + p0 : 'pp. ' + p0 + '–' + p1) + '* — written by Claude from the PDF; check anything important against it.', pos: 1024 });
+  Store.saveBlock(nm.id, head, 0); let lastPos = 1024;
+  openDoc(nm.id); renderSide();
+  // progress: a small card in the corner, so you can keep reading while it works
+  const card = document.createElement('div'); card.className = 'cvcard';
+  card.innerHTML = '<b>✦ Converting “' + esc(r.title) + '”</b><p class="hint cvst">Starting…</p><div class="cvbar"><i style="width:3%"></i></div><div style="display:flex;gap:6px;justify-content:flex-end"><button class="btn" data-cv="stop">Stop</button></div>';
+  document.body.appendChild(card); let stop = false; card.querySelector('[data-cv="stop"]').onclick = () => { stop = true; card.querySelector('.cvst').textContent = 'Stopping after this part…'; };
+  const per = style === 'condensed' ? 3 : 2; const total = p1 - p0 + 1; let done = 0, failed = 0, noImg = false, made = 0; const tail = [];
+  const pageImg = async (pg) => { const v0 = pg.getViewport({ scale: 1 }); const sc = Math.min(2.5, 1300 / v0.width); const v = pg.getViewport({ scale: sc });
+    const c = document.createElement('canvas'); c.width = Math.round(v.width); c.height = Math.round(v.height); const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+    await pg.render({ canvasContext: g, viewport: v }).promise; return await new Promise(res => c.toBlob(res, 'image/jpeg', 0.8)); };
+  const pageTxt = async (pg) => { const tc = await pg.getTextContent(); return tc.items.map(it => (it.str || '') + (it.hasEOL ? '\n' : '')).join('').replace(/[ \t]+/g, ' ').trim(); };
+  const add = (list) => {
+    if (!list.length) return;
+    if (state.docId === nm.id && state.loadedDoc) { const last = state.order[state.order.length - 1] || null; if (state.editing) stopEdit(); const ids = insertBlocksAfter(last, list, 'add converted pages'); made += ids.length; const lb = state.blocks.get(ids[ids.length - 1]); if (lb) lastPos = Math.max(lastPos, lb.pos); return; }
+    for (const x of joinSpecs(list)) { const tp = x.type === 'box' ? 'box:' + x.kind : x.type; const nb = newBlock(tp, Object.assign({}, x)); delete nb.bbox; delete nb.cap; lastPos += 1024; nb.pos = lastPos; Store.saveBlock(nm.id, nb, 0); made++; } // (you moved to another note)
+  };
+  const STYLE = style === 'condensed'
+    ? 'Write CONDENSED STUDY NOTES: keep every definition, theorem/lemma (with its exact hypotheses), key formula and the main idea of each proof (a few lines, not every step) and one short example where it helps; drop repetition, anecdotes, exercises lists and filler. Use headings for the sections.'
+    : 'Write FAITHFUL LECTURE NOTES: follow the pages in order and keep all of their content — definitions, theorems, proofs with their steps, examples, remarks and the explanations around them — in clear prose close to the original wording (you may tighten it slightly). Keep the section headings.';
+  for (let a = p0; a <= p1 && !stop; a += per) {
+    const b = Math.min(p1, a + per - 1); const lab = a === b ? 'page ' + a : 'pages ' + a + '–' + b;
+    card.querySelector('.cvst').textContent = 'Reading ' + lab + (total > 1 ? ' · ' + done + ' of ' + total + ' done' : '') + '…'; card.querySelector('.cvbar i').style.width = (3 + 94 * done / total) + '%';
+    try {
+      const pages = []; for (let i = a; i <= b; i++) pages.push(await pdf.getPage(i));
+      const texts = await Promise.all(pages.map(pageTxt)); const imgs = noImg ? [] : await Promise.all(pages.map(pageImg).map(p => p.catch(() => null)));
+      const prompt = 'You are turning ' + lab + ' of the reading "' + r.title + '"' + (course ? ' (course: ' + course + ')' : '') + ' into a student\'s typed notes.\n' + STYLE +
+        '\nRules: put ALL math in LaTeX — inline as $...$ in text, displayed equations as {"type":"math"} blocks; make definitions, theorems, propositions, lemmas, corollaries, proofs, examples and remarks into boxes of that kind (title = only the result\'s short name, e.g. "Bayes\' rule", or empty — not "Theorem 2.3": the notebook numbers boxes itself); headings as h2. Fix obvious typos, OCR / extraction errors and clear mistakes in the source silently (if you correct a real mathematical error, add a short remark box saying so). Describe a figure that matters in one sentence ("Figure 3: …") instead of drawing it. Skip running headers, footers, page numbers and the reference list. Don\'t repeat what came before; continue mid-section without a new heading if the text continues.' +
+        (tail.length ? '\nThe notes so far end with: ' + JSON.stringify(tail.join(' ').slice(-400)) : '') +
+        '\n\n' + (noImg ? 'The page text (no pictures available):' : 'The pictures are the pages in order; the text extracted from them (may have broken symbols — trust the pictures for math):') +
+        texts.map((t, k) => '\n[page ' + (a + k) + ']\n' + (t || '(no text layer — read the picture)').slice(0, 9000)).join('') +
+        '\n\n' + BLOCK_SCHEMA + '\nReply with only JSON: {"blocks":[…]}';
+      let rep; try { rep = await sample(prompt, aiModelOpts(pref, imgs.filter(Boolean).length ? { images: imgs.filter(Boolean) } : {})); }
+      catch (e) { if (e && e.code === 'bad_request' && !noImg) { noImg = true; rep = await sample(prompt.replace('The pictures are the pages in order; the text extracted from them (may have broken symbols — trust the pictures for math):', 'The page text (no pictures available):'), aiModelOpts(pref)); } else throw e; }
+      const out = normBlocks(parseJSONReply(rep.text).blocks).filter(x => x.type !== 'ink');
+      add(out); tail.length = 0; tail.push(...out.slice(-2).map(x => x.text || ''));
+    } catch (e) {
+      failed++; add([{ type: 'box', kind: 'warn', title: lab[0].toUpperCase() + lab.slice(1), text: 'Claude couldn’t convert ' + lab + (e && e.code ? ' (' + sampleErr(e) + ')' : '') + ' — see the PDF.' }]);
+      if (e && (e.code === 'not_granted' || e.code === 'bad_request')) break;
+    }
+    done += b - a + 1;
+  }
+  try { pdf.destroy(); } catch (e) {}
+  card.remove(); renderSide();
+  const msg = stop && done < total ? 'Stopped — kept ' + done + ' of ' + total + ' page' + (total > 1 ? 's' : '') : 'Notes made from “' + r.title + '”' + (failed ? ' (' + failed + ' part' + (failed > 1 ? 's' : '') + ' couldn’t be converted)' : '');
+  if (state.docId === nm.id) toast(msg); else toast(msg, 'Open it', () => openDoc(nm.id));
+}
 { const sync = () => { clearTimeout(Panel._syT); Panel._syT = setTimeout(() => Panel.syncEp(), 0); };
   new MutationObserver(sync).observe($('rbody'), { childList: true }); new MutationObserver(sync).observe($('rpanel'), { attributes: true, attributeFilter: ['hidden', 'style', 'class'] });
   new MutationObserver(sync).observe(document.body, { attributes: true, attributeFilter: ['class'] }); addEventListener('resize', sync); }
@@ -13503,6 +13961,7 @@ $('rpanel').addEventListener('click', e => {
     return;
   }
   const r = e.target.closest('[data-r]'); if (r) { const rd = P.readings.find(x => x.id === r.dataset.r); if (rd) P.openReader(rd); return; }
+  const rcv = e.target.closest('[data-rconv]'); if (rcv) { const rd = P.readings.find(x => x.id === rcv.dataset.rconv); if (rd) convertReading(rd); return; }
   const rdel = e.target.closest('[data-rdel]'); if (rdel) { const rd = P.readings.find(x => x.id === rdel.dataset.rdel); toast('Remove “' + rd.title + '” from this course?', 'Remove', () => { P.readings = P.readings.filter(x => x !== rd); P.saveReadings(); P.render(); }); return; }
   if (P.reader) {
   if (P.reader && P.reader.ep) { const et = e.target.closest('[data-et]'); if (et) { P.epTool(et.dataset.et); return; } const ec = e.target.closest('[data-ec]'); if (ec) { P.epPick(ec.dataset.ec); return; } const fz = e.target.closest('[data-efs]'); if (fz) { P.epFontStep(+fz.dataset.efs); return; } }
@@ -13525,6 +13984,7 @@ $('rpanel').addEventListener('click', e => {
     if (k === 'ask' && R && document.body.classList.contains('readfull')) { const t = $('chatIn'); if (t) { t.value = 'Explain the key ideas on page ' + R.page + ' of "' + R.title + '".'; t.focus(); } return; }
     if (k === 'ask' && R) { P.open('chat'); setTimeout(() => { const t = $('chatIn'); if (t) { t.value = 'Explain the key ideas on page ' + R.page + ' of "' + R.title + '".'; t.focus(); } }, 50); }
     if (k === 'quote') P.quoteSelection(false); if (k === 'askq') P.quoteSelection(true);
+    if (k === 'conv' && R) convertReading(R.r);
     return;
   }
   const q = e.target.closest('[data-q]'); if (q) { P.send(q.dataset.q); return; }
@@ -13611,7 +14071,7 @@ const Scratch = {
         this.b.ink = { w: 1000, h: 1300, bg: this.b.ink.bg || 'grid', strokes: [], shapes: [] }; this.changed(); this.render($('rbody2'));
         toast('Scratch paper cleared', 'Undo', () => { this.b.ink = old.ink; this.text = old.text; this.changed(); if (Panel.scr) this.render($('rbody2')); }); }
       if (a === 'ins') this.insert(wrap.querySelector('[data-sc="aside"]').checked);
-      if (a === 'conv') openMenu(k, [{ html: '✦ Type it out<small>handwriting → typed text (with math), added to your notes</small>', fn: () => this.convert('type') }, { html: '✦ Tidy into a diagram<small>replaces the sketch; Undo brings it back</small>', fn: () => this.convert('diagram') }]);
+      if (a === 'conv') openMenu(k, [{ html: '✦ Type it out' + (inkFixPref() ? ' ✓' : '') + '<small>handwriting → typed text (with math); Claude fixes slips and marks each change</small>', fn: () => { lsSet('nb.inkFix', '1'); this.convert('type'); } }, { html: '✦ Type it out word for word' + (inkFixPref() ? '' : ' ✓') + '<small>exact transcription, no corrections</small>', fn: () => { lsSet('nb.inkFix', '0'); this.convert('type'); } }, { html: '✦ Tidy into a diagram<small>replaces the sketch; Undo brings it back</small>', fn: () => this.convert('diagram') }]);
     });
   },
   z: Math.max(0.5, Math.min(4, +(lsGet('nb.scrz') || 1) || 1)),
@@ -13678,10 +14138,11 @@ const Scratch = {
       const blob = await Ink.png(ink, 1.4); const m = state.docs.get(state.docId) || {};
       const ctx = 'Course: ' + (m.course || 'math/statistics') + '. Notes: ' + (m.title || '') + '.';
       if (mode === 'type') {
-        const r = await sample('Transcribe this handwritten scratch work from a student into typed text. Keep their wording, order and steps exactly; don’t add, solve or correct anything. Write it as plain note text: short paragraphs or lines, "- " for lists, inline math in $...$ (LaTeX), and each displayed equation or derivation step on its own line as $$...$$. Unreadable bits: [?]. Reply with only the typed text.\n' + ctx, { modelTier: 'default', images: [blob] });
-        const t = String(r.text || '').replace(/^```[a-z]*\s*|\s*```$/g, '').trim(); if (!t) throw { code: 'empty' };
+        const fix = inkFixPref();
+        const r = await sample('Type up this handwritten scratch work from a student. Write it as plain note text: short paragraphs or lines, "- " for lists, inline math in $...$ (LaTeX), and each displayed equation or derivation step on its own line as $$...$$. Don\'t solve or continue it.\n' + inkTranscribeRules(fix, true) + '\nReply with only the typed text.\n' + ctx, aiModelOpts(aiModelPref(), { images: [blob] }));
+        const t = String(r.text || '').replace(/^```[a-z]*\s*|\s*```$/g, '').trim(); if (!t) throw { code: 'empty' }; const nfix = fix ? inkFixCount([{ text: t }]) : 0;
         if (state.editing) stopEdit(); const after = selIds().pop() || state.order[state.order.length - 1]; const made = insertBlocksAfter(after, [{ type: 'p', text: t, aside: { t: now(), by: 'scratch' } }], 'typed scratch'); if (made[0]) jumpTo(made[0]);
-        toast('Typed it out into your notes', 'Undo', undo);
+        toast('Typed it out into your notes' + (nfix ? ' · ' + nfix + ' correction' + (nfix > 1 ? 's' : '') + ' marked' : ''), 'Undo', undo);
       } else {
         const r = await sample('Redraw the diagram in this image as a clean, simple vector diagram (boxes, circles, arrows, labels, axes/curves). Keep the meaning and layout; drop smudges and stray marks. Labels: plain words with math in $...$.\n' + ctx + '\n\n' + DIAGRAM_SCHEMA + '\nReply with only JSON: {"type":"diagram","height":H,"shapes":[…]}', { modelTier: 'default', images: [blob] });
         const d = parseJSONReply(r.text); if (!d || !d.shapes || !d.shapes.length) throw { code: 'empty' };
