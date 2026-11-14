@@ -49,6 +49,8 @@ The buttons in the notebook still say “Claude” (✦ Claude, Ask); with OpenA
 
 **⚙ Settings → Google Drive → Connect Google Drive** signs you in with Google and backs up every note to a **Lecture Notebook backups** folder in your Drive (automatically, a few minutes after you stop typing, if you leave that on). **Load from Drive…** brings notes back on another device. The notebook asks only for Google's `drive.file` permission, so it can see only the files it created, not the rest of your Drive.
 
+A note you add or restore with **Load from Drive** stays linked to its Drive copy: your changes go there, and changes made to it in another browser come here on their own (every couple of minutes while the notebook is open). If you changed it in both places, yours stays and the other version is added as a separate note. **Load as a copy** makes a separate note that isn't linked. Notes created in another browser still come over with **Load from Drive**.
+
 Google sign-in lasts about an hour. After that, automatic backups pause until you click the ☁ Drive button → **Back up now**, which signs you in again.
 
 #### One-time setup for whoever hosts the site
