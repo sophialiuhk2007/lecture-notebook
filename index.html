@@ -1574,6 +1574,10 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       busy.close();
       const files = Object.keys(j.blobs).length;
       if (!j.docs) { if (!confirm('These files hold only pictures and PDFs (' + files + '). The notes are in part 1 of the backup — pick it together with the other parts. Add just the pictures and PDFs now?')) return; j.docs = {}; }
+      // course readings whose PDF isn't in the backup (nor already here) stay listed, marked "PDF not here", to upload again
+      const have = (id) => !!(id && (j.blobs[id] || blobs.has(id)));
+      for (const [k, v] of Object.entries(j.docs)) if (/^courses\/[^/]+$/.test(k) && v && Array.isArray(v.readings))
+        j.docs[k] = Object.assign({}, v, { readings: v.readings.map(r => { if (!r || r.kind === 'link' || !r.asset) return r; const ok = have(r.asset) || have(r.ann); const x = Object.assign({}, r); if (ok) delete x.missing; else x.missing = true; if (ok && !have(r.ann)) delete x.ann; return x; }) });
       const n = Object.keys(j.docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
       if (n && !confirm('Add the ' + n + ' notes' + (files ? ' and ' + files + ' pictures/PDFs' : '') + ' from this backup' + (j.from === 'claude.ai' ? ' (made in the claude.ai notebook)' : '') + ' to this browser? A note that is already here is replaced by the backup’s copy; nothing else is deleted.')) return;
       await W.restoreData(j);
@@ -15624,7 +15628,7 @@ const Panel = {
     if (this.tab === 'note') { $('rtitle').textContent = 'Side by side'; return SideNote.render(host); }
     if (this.tab === 'read') {
       if (this.reader && !this.page) return this.renderReader();
-      host.innerHTML = '<div class="rpad">' + (this.readings.length ? this.readings.map(r => '<div class="ritem"><button class="docitem" data-r="' + esc(r.id) + '"><b>' + (r.kind === 'link' ? '🔗 ' : '📄 ') + esc(r.title) + '</b><span>' + esc(r.kind === 'link' ? r.url : (r.pages ? r.pages + ' pages · ' : '') + 'PDF') + '</span></button>' + (r.kind === 'link' ? '' : '<button class="more" data-rconv="' + esc(r.id) + '" title="Convert to typed notes (Claude)" aria-label="Convert to typed notes">⇢</button>') + '<button class="more" data-rdel="' + esc(r.id) + '" aria-label="Remove reading">✕</button></div>').join('') : '<p class="hint">No readings for this course yet. Add the course’s PDFs (the book, lecture notes) to read them next to your notes, or save links to course websites.</p>') +
+      host.innerHTML = '<div class="rpad">' + (this.readings.length ? this.readings.map(r => '<div class="ritem"><button class="docitem" data-r="' + esc(r.id) + '"><b>' + (r.kind === 'link' ? '🔗 ' : '📄 ') + esc(r.title) + '</b><span>' + (r.missing ? '<span style="color:var(--k-warn,#b3261e)">PDF not here — upload it again</span>' : esc(r.kind === 'link' ? r.url : (r.pages ? r.pages + ' pages · ' : '') + 'PDF')) + '</span></button>' + (r.missing ? '<button class="btn" data-rup="' + esc(r.id) + '" title="Choose this reading’s PDF on your computer">⤒ Upload</button>' : '') + (r.kind === 'link' || r.missing ? '' : '<button class="more" data-rconv="' + esc(r.id) + '" title="Convert to typed notes (Claude)" aria-label="Convert to typed notes">⇢</button>') + '<button class="more" data-rdel="' + esc(r.id) + '" aria-label="Remove reading">✕</button></div>').join('') : '<p class="hint">No readings for this course yet. Add the course’s PDFs (the book, lecture notes) to read them next to your notes, or save links to course websites.</p>') +
         '<div class="row" style="margin-top:10px"><button class="btn go" id="addPdf">+ Add PDF</button><button class="btn" id="addLink">+ Add link</button></div><input type="file" id="pdfIn" accept="application/pdf" hidden>' +
         '<p class="hint" style="margin-top:12px">Websites can’t be shown inside this page, so links open in a new tab. Tip: to read a website here, save it as PDF from your browser and add the PDF.</p></div>';
       return;
@@ -15737,10 +15741,36 @@ const Panel = {
     this.reader = { r, title: r.title, page: +(lsGet('nb.rp.' + r.id) || 1), pdf: null, tc: [], txt: [], els: [], sizes: [], q: '', ep: true, course: this.curCourse(), ckey: this.slug(this.curCourse()) };
     const R = this.reader; this.page = !!page; this.pgMode(); this.renderReader(); Ann.load(r.id); renderSide();
     try {
-      const buf = await (await fetch(BLOB(r.ann || r.asset))).arrayBuffer(); if (this.reader !== R) return;
+      const get = async (id) => { if (!id) return null; try { const res = await fetch(BLOB(id)); return res.ok ? await res.arrayBuffer() : null; } catch (e) { return null; } };
+      const buf = r.missing ? null : ((await get(r.ann)) || (await get(r.asset))); if (this.reader !== R) return;
+      if (!buf || !buf.byteLength) { this.epMissing(R); return; }
       await this.mountEP(R, buf.slice(0)); if (this.reader === R && R.reg) this.pgHook(R);
       pdfjsReady().then(() => pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise).then(pdf => { if (this.reader !== R) { pdf.destroy(); return; } R.pdf = pdf; if (!r.pages) { r.pages = pdf.numPages; this.saveReadings(); } }).catch(() => {});
     } catch (e) { console.error('reader', e); this.epSay(R, 'Couldn’t open this PDF.'); }
+  },
+  epMissing(R) {
+    const L = $('epLayer'); if (!L || this.reader !== R) return;
+    L.innerHTML = '<div style="padding:24px 16px;text-align:center;font:13px var(--f-ui)"><p style="margin:0 0 6px"><b>This reading’s PDF isn’t here.</b></p><p class="hint" style="margin:0 0 12px">' + (R.r.missing ? 'It was left out of the backup this notebook was restored from.' : 'It couldn’t be loaded.') + ' Upload the PDF again to read it; your comments and marks on it stay.</p>' +
+      '<button class="btn go" data-epx="up">⤒ Upload the PDF</button> ' + (R.r.missing ? '' : '<button class="btn" data-epx="retry">Try again</button>') + '</div>';
+    L.querySelector('[data-epx="up"]').onclick = () => this.reuploadPdf(R.r);
+    const t = L.querySelector('[data-epx="retry"]'); if (t) t.onclick = () => this.openReader(R.r, this.page);
+  },
+  // put a reading's PDF back (after a backup without the PDFs): same reading, new file
+  reuploadPdf(r) {
+    if (!Store.assets) { toast('Adding PDFs needs the saved version of this page (open it from your artifacts).'); return; }
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf';
+    inp.onchange = async () => {
+      const file = inp.files && inp.files[0]; if (!file) return;
+      if (file.size > 20 * 1024 * 1024) { toast('That PDF is over 20 MB — split it, or add the chapters separately'); return; }
+      toast('Uploading “' + file.name + '”…');
+      try {
+        const up = await Store.assets.upload(file, { type: 'application/pdf' });
+        const x = this.readings.find(y => y.id === r.id) || r; x.asset = up.id; delete x.ann; delete x.annAt; delete x.missing; delete x.pages;
+        this.saveReadings(); toast('Uploaded “' + x.title + '”');
+        if (this.reader && this.reader.r && this.reader.r.id === x.id) await this.openReader(x, this.page); else this.render();
+      } catch (e) { toast('Couldn’t upload the PDF (' + ((e && e.code) || 'error') + ')'); }
+    };
+    inp.click();
   },
   epSay(R, msg) { const L = $('epLayer'); if (L && this.reader === R) L.innerHTML = '<p class="hint" style="padding:12px">' + esc(msg) + '</p>'; },
   closeReader() {
@@ -16416,6 +16446,7 @@ const rpClick = e => {
   }
   const r = e.target.closest('[data-r]'); if (r) { const rd = P.readings.find(x => x.id === r.dataset.r); if (rd) P.openReader(rd); return; }
   const rcv = e.target.closest('[data-rconv]'); if (rcv) { const rd = P.readings.find(x => x.id === rcv.dataset.rconv); if (rd) convertReading(rd); return; }
+  const rup = e.target.closest('[data-rup]'); if (rup) { const rd = P.readings.find(x => x.id === rup.dataset.rup); if (rd) P.reuploadPdf(rd); return; }
   const rdel = e.target.closest('[data-rdel]'); if (rdel) { const rd = P.readings.find(x => x.id === rdel.dataset.rdel); toast('Remove “' + rd.title + '” from this course?', 'Remove', () => { P.readings = P.readings.filter(x => x !== rd); P.saveReadings(); P.render(); }); return; }
   if (P.reader) {
   if (P.reader && P.reader.ep) { const et = e.target.closest('[data-et]'); if (et) { P.epTool(et.dataset.et); return; } const ec = e.target.closest('[data-ec]'); if (ec) { P.epPick(ec.dataset.ec); return; } const fz = e.target.closest('[data-efs]'); if (fz) { P.epFontStep(+fz.dataset.efs); return; } }
@@ -16762,7 +16793,7 @@ const Books = {
     const key = Panel.slug(Panel.curCourse());
     let rs = Panel._loaded === key ? Panel.readings : null;
     if (!rs) { try { if (Store.mode === 'db') { const d = await Store.db.doc('courses/' + key).get(); rs = (d.exists && plainData(d).readings) || []; } else rs = JSON.parse(lsGet('nb.read.' + key) || '[]'); } catch (e) { rs = []; } }
-    return (rs || []).filter(r => r && r.kind !== 'link' && r.asset);
+    return (rs || []).filter(r => r && r.kind !== 'link' && r.asset && !r.missing);
   },
   async allList() { const key = Panel.slug(Panel.curCourse()); let rs = Panel._loaded === key ? Panel.readings : null;
     if (!rs) { try { if (Store.mode === 'db') { const d = await Store.db.doc('courses/' + key).get(); rs = (d.exists && plainData(d).readings) || []; } else rs = JSON.parse(lsGet('nb.read.' + key) || '[]'); } catch (e) { rs = []; } }
@@ -17057,6 +17088,8 @@ async function backupNotebookFile() {
   const day = now().slice(0, 10), set = uid('bk'), from = window.__web ? 'web' : 'claude.ai';
   const meta = (k) => ({ app: 'lecture-notebook', v: 2, set, part: k, saved: now(), from, files: {} });
   let k = 1, zip = new JSZip(), cur = meta(1), size = 0, files = 0, failed = 0, done = 0, bytes = 0; const saved = [];
+  if (mode === 'nopdf') for (const key of Object.keys(docs)) { const v = docs[key]; if (/^courses\/[^/]+$/.test(key) && v && Array.isArray(v.readings))
+    docs[key] = Object.assign({}, v, { readings: v.readings.map(r => r && r.kind !== 'link' && [r.asset, r.ann].some(id => id && info[id] && info[id].type === 'application/pdf') ? Object.assign({}, r, { missing: true }) : r) }); }
   zip.file('notebook.json', JSON.stringify({ app: 'lecture-notebook', v: 2, set, saved: now(), from, docs }), { compression: 'DEFLATE' });
   const flush = async (last) => {
     zip.file('backup.json', JSON.stringify(Object.assign(cur, { last: !!last })));
