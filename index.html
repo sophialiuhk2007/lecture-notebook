@@ -7630,13 +7630,24 @@ function copyBlocks(ids, cut) {
   }
   const text = pl.join('\n\n');
   state.clip = { text, blocks };
-  copyText(text, (cut ? 'Cut ' : 'Copied ') + ids.length + ' block' + (ids.length > 1 ? 's' : ''), hs.join(''));
+  // the blocks themselves ride along in the formatted copy, so they paste back as blocks anywhere in the notebook (other notes, tabs, after a reload)
+  const tag = '<span data-nbblocks="' + encodeURIComponent(JSON.stringify({ v: 1, blocks: blocks.map(b => { const c = clone(b); delete c.comments; return c; }) })) + '"></span>';
+  copyText(text, (cut ? 'Cut ' : 'Copied ') + ids.length + ' block' + (ids.length > 1 ? 's' : ''), tag + hs.join(''));
   if (cut) deleteBlocks(ids, 'cut');
 }
-function pasteBlocks(afterId) {
-  if (!state.clip) return false;
+// blocks copied in this notebook, from a paste's clipboard (or this page's last copy); null for anything else
+function clipBlocks(cd) {
+  if (!cd) return null;
+  const html = cd.getData('text/html') || ''; const m = html.match(/data-nbblocks="([^"]*)"/);
+  if (m) { try { const j = JSON.parse(decodeURIComponent(m[1].replace(/&amp;/g, '&'))); if (j && Array.isArray(j.blocks) && j.blocks.length) return j.blocks; } catch (e) {} }
+  const t = cd.getData('text/plain'); if (state.clip && t && RT.clipNorm(t) === RT.clipNorm(state.clip.text)) return state.clip.blocks;
+  return null;
+}
+function pasteBlocks(afterId, list) {
+  list = list || (state.clip && state.clip.blocks); if (!list || !list.length) return false;
   let after = afterId || state.order[state.order.length - 1]; const made = [];
-  for (const src of joinSpecs(state.clip.blocks.map(clone))) { const c = clone(src); c.id = uid('b'); c.pos = posAfter(after); delete c.comments; state.blocks.set(c.id, c); sortOrder(); Store.saveBlock(state.docId, c, 0); made.push(c.id); after = c.id; }
+  // each block as it was copied (paragraphs are not joined)
+  for (const src of list.map(clone)) { const c = clone(src); c.id = uid('b'); c.pos = posAfter(after); delete c.comments; state.blocks.set(c.id, c); sortOrder(); Store.saveBlock(state.docId, c, 0); made.push(c.id); after = c.id; }
   const before = {}; made.forEach(id => before[id] = null); record('paste', before, made); renderAll(); setSel(made); return true;
 }
 
@@ -9287,7 +9298,7 @@ document.addEventListener('paste', e => {
   }
   const inField = e.target.closest && e.target.closest('textarea,input');
   if (window.__pastePend) { clearTimeout(window.__pastePend); window.__pastePend = 0; }
-  if (!inField && !(e.target.closest && e.target.closest('.rt')) && state.clip) { const t = e.clipboardData && e.clipboardData.getData('text/plain'); if (!t || RT.clipNorm(t) === RT.clipNorm(state.clip.text)) { e.preventDefault(); pasteBlocks(selIds().pop()); } }
+  if (!inField && !(e.target.closest && e.target.closest('.rt'))) { const cbs = clipBlocks(e.clipboardData); const t = e.clipboardData && e.clipboardData.getData('text/plain'); if (cbs || (state.clip && !t)) { e.preventDefault(); pasteBlocks(selIds().pop(), cbs || state.clip.blocks); } }
 });
 // pasted text: \( … \) → $…$, \[ … \] (on its own line) → displayed $ … $, $$…$$ in a sentence → inline $…$
 function pasteDelims(pt) {
@@ -9316,11 +9327,11 @@ function pasteFenced(rt, text) {
   return true;
 }
 // copied blocks pasted while typing in a block: an empty block is replaced by them, otherwise they go right after it; a single paragraph pastes inline
-function pasteBlocksInto(d) {
-  const id = state.editing; const b = id && state.blocks.get(id); if (!b || !state.clip) return false;
-  const bs = state.clip.blocks; if (bs.length && bs.every(x => x.type === 'p')) { RT.insert(d, bs.map(x => String(x.text || '').replace(/\s+$/, '')).filter(t => t.trim()).join('\n\n')); return true; } // text paragraphs paste as text, into this block
+function pasteBlocksInto(d, bs) {
+  const id = state.editing; const b = id && state.blocks.get(id); bs = bs || (state.clip && state.clip.blocks); if (!b || !bs || !bs.length) return false;
+  if (bs.length === 1 && bs[0].type === 'p') { RT.insert(d, String(bs[0].text || '').replace(/\s+$/, '')); return true; } // one text block pastes inline, into this block
   const empty = !RT.clipNorm(RT.ser(d)) && b.type === 'p';
-  stopEdit(); pasteBlocks(id); if (empty) { const keep = selIds(); deleteBlocks([id], 'paste'); setSel(keep); }
+  stopEdit(); pasteBlocks(id, bs); if (empty) { const keep = selIds(); deleteBlocks([id], 'paste'); setSel(keep); }
   return true;
 }
 
@@ -11124,7 +11135,7 @@ const RT = {
     const t = cd.getData('text/plain'); if (RT._clip && t && RT.clipNorm(t) === RT.clipNorm(RT._clip.plain)) return RT._clip.markup;
     return null;
   },
-  isBlockClip(cd) { const t = cd.getData('text/plain'); return !!(state.clip && t && RT.clipNorm(t) === RT.clipNorm(state.clip.text)); },
+  isBlockClip(cd) { return !!clipBlocks(cd); },
   wrapOf(c) {
     const t = c.tagName;
     if (t === 'B' || t === 'STRONG') return ['*', '*']; if (t === 'I' || t === 'EM') return ['_', '_']; if (t === 'U') return ['__', '__'];
@@ -11945,7 +11956,7 @@ const RT = {
       if (e.target && e.target.closest && e.target.closest('math-field')) return;
       const cd = e.clipboardData; if (!cd) return; if ([...cd.items].some(i => i.type.startsWith('image/'))) return;
       const t = cd.getData('text/plain'); if (t == null) return; e.preventDefault(); e.stopPropagation();
-      if (RT.isBlockClip(cd) && pasteBlocksInto(d)) return; // copied blocks: paste them as blocks (one paragraph pastes inline, formatting kept)
+      { const cbs = clipBlocks(cd); if (cbs && pasteBlocksInto(d, cbs)) return; } // copied blocks: paste them as blocks (one text block pastes inline, formatting kept)
       const mk = RT.clipMarkup(cd); RT.insert(d, mk != null ? mk : t.replace(/\r/g, ''));
     });
     const onCopy = (e, cut) => {
