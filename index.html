@@ -16749,11 +16749,22 @@ function fitBar() {
     let bodySig = ''; new MutationObserver(() => { const sg = document.body.className.replace(/\bbfit\d\b/g, '').trim(); if (sg !== bodySig) { bodySig = sg; fitSoon(); } }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSoon); setTimeout(fitSoon, 0); }
 $('barMore').onclick = () => {
-  const F = (f, h) => ({ html: h, fn: () => format(f) }), C = (id, h) => ({ html: h, fn: () => $(id).click() });
+  // only what isn't on the bar right now (hidden by the window's width or by fitBar) goes in ⋯
+  const onBar = (el) => !!(el && el.offsetWidth > 0 && el.getClientRects().length);
+  const F = (f, h) => onBar(document.querySelector('#fmt [data-f="' + f + '"]')) ? null : { html: h, fn: () => format(f) };
+  const C = (id, h) => onBar($(id)) ? null : { html: h, fn: () => $(id).click() };
   const reanchor = () => setTimeout(() => { const m = document.querySelector('.menu'), r = $('barMore').getBoundingClientRect(); if (m) { m.style.left = Math.max(8, innerWidth - m.offsetWidth - 8) + 'px'; m.style.top = (r.bottom + 4) + 'px'; } }, 0);
-  openMenu($('barMore'), [{ head: 'Format' }, F('bold', '<b>B</b> Bold'), F('italic', '<i>I</i> Italic'), F('underline', '<u>U</u> Underline'), F('hl', '▮ Highlight'), F('ul', '• Bulleted list'), F('task', '☑ Check-off list'), F('ol', '№ Numbered list'), F('symbols', '∑ Symbols'), F('ref', '@ Refer to…'), F('mark', '⚑ Mark…'), F('comment', '💬 Comment'),
-    { sep: 1 }, C('findBtn', '⌕ Find & replace'), C('scrBtn', '✎ Scratch paper'), C('splitBtn', '◫ Side by side'), C('asideBtn', '◌ Aside mode' + ($('asideBtn').getAttribute('aria-pressed') === 'true' ? '<small>on</small>' : '')), C('reviewBtn', '▤ Review flashcards'), C('cmtTog', (document.body.classList.contains('nocmts') ? '💬 Show' : '💬 Hide') + ' comments'), C('helpBtn', '? Help & shortcuts'),
-    { sep: 1 }].concat($('driveBtn').hidden ? [] : [{ html: '☁ Google Drive backup', fn: () => Drive.menu() }], window.__web && window.__web.settings ? [{ html: '⚙ Settings', fn: () => window.__web.settings() }] : []).concat($('outlineFab').hidden ? [] : [C('outlineFab', '☰ Outline')], [{ html: '⤓ Export…', fn: () => { $('exportBtn').onclick(); reanchor(); } }]));
+  const fmtItems = [F('bold', '<b>B</b> Bold'), F('italic', '<i>I</i> Italic'), F('underline', '<u>U</u> Underline'), F('hl', '▮ Highlight'), F('ul', '• Bulleted list'), F('task', '☑ Check-off list'), F('ol', '№ Numbered list'), F('symbols', '∑ Symbols'), F('ref', '@ Refer to…'), F('mark', '⚑ Mark…'), F('comment', '💬 Comment')].filter(Boolean);
+  const tools = [C('findBtn', '⌕ Find & replace'), C('scrBtn', '✎ Scratch paper'), C('splitBtn', '◫ Side by side'), C('asideBtn', '◌ Aside mode' + ($('asideBtn').getAttribute('aria-pressed') === 'true' ? '<small>on</small>' : '')), C('reviewBtn', '▤ Review flashcards'), C('cmtTog', (document.body.classList.contains('nocmts') ? '💬 Show' : '💬 Hide') + ' comments'), C('helpBtn', '? Help & shortcuts')].filter(Boolean);
+  const more = [(!$('driveBtn').hidden && !onBar($('driveBtn'))) ? { html: '☁ Google Drive backup', fn: () => Drive.menu() } : null,
+    (window.__web && window.__web.settings && !onBar($('setBtn'))) ? { html: '⚙ Settings', fn: () => window.__web.settings() } : null,
+    $('outlineFab').hidden ? null : C('outlineFab', '☰ Outline'),
+    onBar($('exportBtn')) ? null : { html: '⤓ Export…', fn: () => { $('exportBtn').onclick(); reanchor(); } }].filter(Boolean);
+  const items = [];
+  if (fmtItems.length) items.push({ head: 'Format' }, ...fmtItems);
+  for (const grp of [tools, more]) if (grp.length) { if (items.length) items.push({ sep: 1 }); items.push(...grp); }
+  if (!items.length) items.push({ html: '<span class="hint">Everything is on the bar</span>', fn: () => {} });
+  openMenu($('barMore'), items);
 };
 // ---------------------------------------------------------------- help
 function renderHelp() {
