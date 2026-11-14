@@ -7153,7 +7153,7 @@ function openDoc(id) {
     }
     const first = !state.loadedDoc; state.loadedDoc = true;
     if (changed || first) { sortOrder(); renderAll(); }
-    if (first && !state.blocks.size && !meta.fromCache) { if (isInkDoc(id)) addPage(null, true); else insertAfter(null, 'p'); }
+    if (first && !state.blocks.size && !meta.fromCache && !Object.keys(Store.pending).concat(Object.keys(Store.timers)).some(k => k.startsWith(id + '/'))) { if (isInkDoc(id)) addPage(null, true); else insertAfter(null, 'p'); } // (not while the note's own blocks are still being saved, e.g. just loaded from Drive)
     if (first) { const hash = location.hash.match(/^#b-(.+)$/); if (hash) jumpTo(hash[1], true); maybeDailyVersion(id); }
     if (!meta.fromCache && !meta.hasPendingWrites && state.joinChecked !== id) { state.joinChecked = id; setTimeout(() => joinTextBlocks(id), 0); }
   });
@@ -12480,8 +12480,9 @@ const Drive = {
     if (this.mcp) { try { const l = await this.mcp.listTools(); this.fileArgs = !!(l && l.fileArgs); } catch (e) {} }
     this.status = !this.mcp ? 'unavailable' : this.cfg.auto ? 'on' : 'off';
     this.lastAt = this.cfg.lastAt || null; this.render();
-    if (this.mcp) { setTimeout(() => { if (this.cfg.auto) this.syncAll(false); }, 15000); setInterval(() => { if (this.cfg.auto && document.visibilityState === 'visible') this.syncAll(false); }, 15 * 60000); }
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && this.cfg.auto && this.dirty.size) this.flush(); });
+    if (this.mcp) { setTimeout(() => { if (this.cfg.auto) this.syncAll(false); }, 15000); setInterval(() => { if (this.cfg.auto && document.visibilityState === 'visible') this.syncAll(false); }, 15 * 60000);
+      setInterval(() => { if (this.cfg.auto && document.visibilityState === 'visible') this.pullLinked(false); }, 2 * 60000); }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && this.cfg.auto && this.dirty.size) this.flush(); if (document.visibilityState === 'visible' && this.cfg.auto && this.mcp && Date.now() - (this._pulledAt || 0) > 30000) this.pullLinked(false); });
   },
   async loadCfg() {
     let c = null;
@@ -12565,6 +12566,39 @@ const Drive = {
     }
     throw { code: 'too_big' };
   },
+  // what a note says (title, course, blocks) — not when it was saved: "changed here since the last sync?"
+  csig(m, blocks) { return hash(JSON.stringify({ t: (m && m.title) || '', c: (m && m.course) || '', b: (blocks || []).filter(b => b && !(b.type === 'p' && !String(b.text || '').trim() && !(b.comments || []).length)).map(b => { const x = clone(b); delete x.updated; delete x.rv; return x; }) })); },
+  async localBlocks(id) { return id === state.docId ? ordered().map(clone) : (await Store.blocksOf(id)).map(clone); },
+  newestFor(files, id) { const tag = '[' + id.slice(-6) + '].notebook.json'; return files.filter(f => String(f.title || '').endsWith(tag)).sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''))[0] || null; },
+  // a linked note whose Drive copy was replaced by another browser: bring that version here
+  async pullOne(id, f) {
+    const x = this.cfg.files[id], m = state.docs.get(id); if (!x || !m) return null;
+    const local = await this.localBlocks(id);
+    const changedHere = x.csig ? this.csig(m, local) !== x.csig : (m.updated && x.at && new Date(m.updated).getTime() > new Date(x.at).getTime() + 5000);
+    const j = await this.fetchBackup(f.id);
+    if (j.meta && j.meta.id !== id) return null;
+    if (!changedHere) { await this.importBackup(j, 'replace', f.id); return 'updated'; }
+    if (this.csig(j.meta, j.blocks) === this.csig(m, local)) { this.cfg.files[id] = Object.assign({}, x, { fileId: f.id, csig: this.csig(m, local), at: now() }); this.saveCfg(); return 'same'; }
+    // changed in both places: this note stays (and stays linked); the other version comes in as its own note
+    await this.importBackup(j, 'copy', null, ' (other browser’s version)');
+    this.cfg.files[id] = Object.assign({}, this.cfg.files[id], { fileId: f.id }); this.saveCfg();
+    return 'both';
+  },
+  async pullLinked(manual) {
+    if (!this.mcp || this.pulling) return; this.pulling = true; this._pulledAt = Date.now();
+    let up = 0, both = 0;
+    try {
+      const files = this._list || await this.folderFiles();
+      for (const id of Object.keys(this.cfg.files)) {
+        const d = state.docs.get(id); if (!d || d.trashed) continue;
+        const f = this.newestFor(files, id); if (!f || f.id === this.cfg.files[id].fileId) continue;
+        const r = await this.pullOne(id, f); if (r === 'updated') up++; else if (r === 'both') both++;
+      }
+      if (up || both) toast((up ? up + ' note' + (up > 1 ? 's' : '') + ' updated from Google Drive' : '') + (up && both ? ' · ' : '') + (both ? both + ' note' + (both > 1 ? 's were' : ' was') + ' changed here and elsewhere — the other version is added as a separate note' : ''));
+    } catch (e) { if (manual) toast(this.errText(e)); }
+    finally { this.pulling = false; }
+    return { up, both };
+  },
   // one backup at a time, so an automatic and a manual backup never both upload the same note
   q: Promise.resolve(),
   backupDoc(docId, manual, _a, quiet) { const run = () => this._backupDoc(docId, manual, 0, quiet); const p = this.q.then(run, run); this.q = p.catch(() => {}); return p; },
@@ -12575,9 +12609,15 @@ const Drive = {
       const blocks = docId === state.docId ? ordered().map(clone) : (await Store.blocksOf(docId)).map(clone);
       const body = { format: 'lecture-notebook', v: 1, meta: clone(m), blocks };
       const sig = hash(JSON.stringify(body));
-      const prev = this.cfg.files[docId];
-      if (!manual && prev && prev.sig === sig) { this.status = 'ok'; return true; }
+      let prev = this.cfg.files[docId]; const csig = this.csig(m, blocks);
+      if (!manual && prev && (prev.sig === sig || prev.csig === csig)) { this.status = 'ok'; return true; }
       await this.ensureFolder();
+      if (prev) { // another browser replaced this note's Drive copy since we last synced: bring that in first
+        const nf = this.newestFor(this._list || await this.folderFiles(), docId);
+        if (nf && nf.id === prev.fileId && prev.csig === csig) { this.status = 'ok'; return true; } // Drive already has exactly this
+        if (nf && nf.id !== prev.fileId) { const r = await this.pullOne(docId, nf); prev = this.cfg.files[docId]; if (r === 'updated' || r === 'same') { this.status = 'ok'; return true; } }
+        if (!manual && prev && prev.csig === this.csig(state.docs.get(docId), await this.localBlocks(docId))) { this.status = 'ok'; return true; }
+      }
       if (!prev) { // first backup of this note from this browser: don't replace another browser's copy of it
         const base0 = this.baseOf(m), t0 = base0 + ' [' + docId.slice(-6) + '].notebook.json';
         const there = (this._list || await this.folderFiles()).some(x => x.title === t0 || x.title === base0 + '.notebook.json');
@@ -12605,7 +12645,7 @@ const Drive = {
       for (const o of olds) if (o.id !== fid) { try { await this.call('trash_file', { fileId: o.id }); } catch (e) {} }
       if (prev && prev.fileId && prev.fileId !== fid && !olds.some(o => o.id === prev.fileId)) { try { await this.call('trash_file', { fileId: prev.fileId }); } catch (e) {} }
       if (this._list) { this._list = this._list.filter(x => !olds.some(o => o.id === x.id && o.id !== fid)); if (!this._list.some(x => x.id === fid)) this._list.push({ id: fid, title, modifiedTime: now() }); }
-      this.cfg.files[docId] = { fileId: fid, sig, at: now() }; this.cfg.lastAt = now(); this.lastAt = this.cfg.lastAt; this.saveCfg();
+      this.cfg.files[docId] = { fileId: fid, sig, csig, at: now() }; this.cfg.lastAt = now(); this.lastAt = this.cfg.lastAt; this.saveCfg();
       this.status = 'ok'; this.msg = '';
       return true;
     } catch (e) {
@@ -12631,6 +12671,7 @@ const Drive = {
     try {
       let files; try { files = await this.folderFiles(); } catch (e) { this.status = 'error'; this.msg = this.errText(e); this.render(); if (manual) toast(this.msg); return; }
       this._list = files;
+      try { await this.pullLinked(false); } catch (e) {} // changes made elsewhere come in before anything goes up
       const docs = [...state.docs.values()].filter(d => !d.trashed && !d.example);
       const todo = []; this.foreign = [];
       for (const d of docs) {
@@ -12713,7 +12754,7 @@ const Drive = {
     return j;
   },
   async openLoad() {
-    const m = modal('<div style="width:min(620px,calc(100vw - 48px))"><div style="display:flex;align-items:center;gap:8px"><b>Load from Google Drive</b><span class="grow"></span><button class="btn" data-x="cancel">Close</button></div><p class="hint">Backups in “' + DRIVE_FOLDER + '”. Loading never deletes anything: a note you already have is saved to its Version history before it’s replaced.</p><div class="drlist"><span class="hint">Looking in your Drive…</span></div></div>');
+    const m = modal('<div style="width:min(620px,calc(100vw - 48px))"><div style="display:flex;align-items:center;gap:8px"><b>Load from Google Drive</b><span class="grow"></span><button class="btn" data-x="cancel">Close</button></div><p class="hint">Backups in “' + DRIVE_FOLDER + '”. A note you add or restore stays in sync with its Drive copy (changes made in another browser come here, yours go there); “Load as a copy” makes a separate note. Loading never deletes anything: a note you already have is saved to its Version history before it’s replaced.</p><div class="drlist"><span class="hint">Looking in your Drive…</span></div></div>');
     let files = [];
     try { files = await this.list(); } catch (e) { m.querySelector('.drlist').innerHTML = '<p class="hint" style="color:var(--k-warn)">' + esc(this.errText(e)) + '</p>'; return; }
     const missing = files.filter(f => !this.localFor(f));
@@ -12743,11 +12784,11 @@ const Drive = {
       }
     }
   },
-  async importBackup(j, how, fileId) {
+  async importBackup(j, how, fileId, copyName) {
     const blocks = j.blocks.map(b => Object.assign({}, b));
     await this.fixImages(blocks, j.images);
     let meta = Object.assign({}, j.meta); const existing = state.docs.get(meta.id);
-    if (how === 'copy' || (how === 'add' && existing)) { meta = Object.assign(meta, { id: uid('d'), title: (meta.title || 'Untitled') + ' (from Drive)', created: now() }); delete meta.typed; delete meta.from; }
+    if (how === 'copy' || (how === 'add' && existing)) { meta = Object.assign(meta, { id: uid('d'), title: (meta.title || 'Untitled') + (copyName || ' (from Drive)'), created: now() }); delete meta.typed; delete meta.from; }
     delete meta.trashed; meta.updated = now();
     if (how === 'replace' && existing) {
       const cur = meta.id === state.docId ? ordered() : await Store.blocksOf(meta.id);
@@ -12756,9 +12797,13 @@ const Drive = {
     }
     state.docs.set(meta.id, meta); Store.saveDoc(meta);
     for (const b of blocks) Store.saveBlock(meta.id, b, 0);
-    if (fileId && how !== 'copy' && !(how === 'add' && existing)) { this.cfg.files[meta.id] = { fileId, sig: null, at: now() }; this.saveCfg(); }
+    if (fileId && how !== 'copy' && !(how === 'add' && existing)) { this.cfg.files[meta.id] = { fileId, sig: null, csig: this.csig(meta, blocks), at: now() }; this.saveCfg(); } // linked: kept in sync from now on
     if (Store.mode !== 'db' && Store.local.docs[meta.id]) { Store.local.docs[meta.id].blocks = Object.fromEntries(blocks.map(b => [b.id, clone(b)])); Store.persist(); }
-    if (meta.id === state.docId) { const id = meta.id; state.docId = null; openDoc(id); }
+    if (meta.id === state.docId) { // the open note: show the new content now (don't wait for storage to report it back)
+      if (state.editing) { state.editing = null; state.field = null; }
+      state.blocks = new Map(blocks.map(b => [b.id, clone(b)])); sortOrder(); renderAll();
+      $('dtitle').value = meta.title || ''; $('dcourse').value = meta.course || '';
+    }
     renderSide(); return meta.id;
   }
 };
