@@ -7607,7 +7607,7 @@ $('sideBody').addEventListener('click', e => {
       return;
     }
     const picked = sh.classList.contains('fsel'); state.sideFolder = { course, section: sname }; // + Lecture / ✎ Handwritten / ⤒ LaTeX now put new notes here
-    const key = '§' + g + '/' + sname; if (picked || t.closest('.tw') || sh.classList.contains('closed')) state.closed[key] = !sh.classList.contains('closed'); // the first click on an open one only picks it lsSet('nb.closed', JSON.stringify(state.closed)); renderSide(); return;
+    const key = '§' + g + '/' + sname; if (picked || t.closest('.tw') || sh.classList.contains('closed')) state.closed[key] = !sh.classList.contains('closed'); /* the first click on an open one only picks it */ lsSet('nb.closed', JSON.stringify(state.closed)); renderSide(); return;
   }
   const fh = t.closest('.fhead');
   if (fh) {
