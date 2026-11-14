@@ -122,6 +122,12 @@ textarea.dtitle{display:block;resize:none;overflow:hidden;field-sizing:content;m
 .gut button{width:20px;height:24px;border:0;background:transparent;border-radius:4px;cursor:pointer;color:var(--muted);padding:0;display:grid;place-items:center}
 .gut button:hover{background:var(--panel-2);color:var(--ink)}
 .gut svg{width:14px;height:14px}
+.gut [data-g="handle"]{cursor:grab;touch-action:none}
+body.blkdragging,body.blkdragging *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important}
+.blk.dragsrc{opacity:.35}
+.blkdrop{position:fixed;height:3px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 25%,transparent);pointer-events:none;z-index:70}
+.blkdrop::before{content:"";position:absolute;left:-5px;top:-3px;width:9px;height:9px;border-radius:50%;background:var(--accent)}
+.blkdragtag{position:fixed;z-index:71;pointer-events:none;font:600 12px var(--f-ui);color:var(--accent-ink);background:var(--accent);border-radius:99px;padding:3px 9px;box-shadow:var(--shadow);white-space:nowrap}
 .blk.flash{animation:flash 1.4s ease}
 @keyframes flash{0%{background:color-mix(in srgb,var(--note) 22%,transparent)}100%{background:transparent}}
 .view{font-family:var(--f-body);font-size:16.5px;line-height:1.6;cursor:text;min-height:1.6em;overflow-wrap:break-word}
@@ -7033,7 +7039,7 @@ function blockEl(b) {
   let el = $('b-' + b.id);
   if (!el) {
     el = document.createElement('div'); el.id = 'b-' + b.id; el.dataset.id = b.id;
-    el.innerHTML = '<div class="gut"><button data-g="add" title="Insert a block below" aria-label="Insert below"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg></button><button data-g="handle" title="Select (click) · Shift-click to select a range" aria-label="Select block"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="6" cy="8" r="1.2"/><circle cx="10" cy="8" r="1.2"/><circle cx="6" cy="12" r="1.2"/><circle cx="10" cy="12" r="1.2"/></svg></button></div>' +
+    el.innerHTML = '<div class="gut"><button data-g="add" title="Insert a block below" aria-label="Insert below"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg></button><button data-g="handle" title="Drag to move · click to select · Shift-click to select a range" aria-label="Move or select block"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.2"/><circle cx="10" cy="4" r="1.2"/><circle cx="6" cy="8" r="1.2"/><circle cx="10" cy="8" r="1.2"/><circle cx="6" cy="12" r="1.2"/><circle cx="10" cy="12" r="1.2"/></svg></button></div>' +
       '<div class="tools"><span class="mks"></span><button class="more" data-g="menu" title="Block menu: turn into, mark, ask Claude, move, delete" aria-label="Block menu">⋯</button></div><div class="slot"></div><div class="cmtinline"></div><div class="aislot"></div>';
   }
   const hasMarks = b.marks && Object.keys(b.marks).some(k => MARKS[k]);
@@ -7321,6 +7327,70 @@ function moveBlocks(ids, dir) {
   sortOrder(); renderAll();
   if (state.editing) focusField(state.editing, {});
 }
+// ---------------------------------------------------------------- drag ⠿ to move blocks (v165)
+let blkDrag = null, blkDragEnd = 0;
+function blkDropTargets(d) { return [...$('blocks').children].filter(el => el.classList.contains('blk') && el.dataset.id && !d.set.has(el.dataset.id) && el.offsetParent && el.offsetHeight); }
+function blkDragStart(d) {
+  if (state.editing) stopEdit();
+  d.ids = state.sel.has(d.id) && state.sel.size > 1 ? selIds() : [d.id]; d.set = new Set(d.ids); d.on = true;
+  d.ids.forEach(id => { const el = $('b-' + id); if (el) el.classList.add('dragsrc'); });
+  document.body.classList.add('blkdragging');
+  d.line = document.createElement('div'); d.line.className = 'blkdrop'; d.line.hidden = true; document.body.appendChild(d.line);
+  d.tag = document.createElement('div'); d.tag.className = 'blkdragtag'; d.tag.textContent = d.ids.length > 1 ? d.ids.length + ' blocks' : ((state.nums[d.id] || {}).label || 'Move block'); document.body.appendChild(d.tag);
+  try { d.h.setPointerCapture(d.pid); } catch (e) {}
+  // keep scrolling while the pointer rests near the top / bottom edge
+  d.timer = setInterval(() => { const sc = $('scroll'); if (!sc || d.cy == null) return; const r = sc.getBoundingClientRect(), m = 56;
+    const v = d.cy < r.top + m ? -Math.ceil((r.top + m - d.cy) / 4) : d.cy > r.bottom - m ? Math.ceil((d.cy - (r.bottom - m)) / 4) : 0;
+    if (v) { sc.scrollTop += v; blkDragMove(d); } }, 16);
+}
+function blkDragMove(d, e) {
+  if (e) { d.cx = e.clientX; d.cy = e.clientY; }
+  d.tag.style.left = (d.cx + 14) + 'px'; d.tag.style.top = (d.cy + 10) + 'px';
+  const els = blkDropTargets(d); if (!els.length) { d.line.hidden = true; d.before = undefined; return; }
+  let before = null; for (const el of els) { const r = el.getBoundingClientRect(); if (d.cy < r.top + r.height / 2) { before = el; break; } }
+  d.before = before ? before.dataset.id : null; // null = after the last block
+  const ref = before || els[els.length - 1], r = ref.getBoundingClientRect(), br = $('blocks').getBoundingClientRect();
+  d.line.hidden = false; d.line.style.left = br.left + 'px'; d.line.style.width = br.width + 'px';
+  d.line.style.top = Math.round((before ? r.top - 3 : r.bottom + 1)) + 'px';
+}
+function blkDragFinish(d, commit) {
+  clearInterval(d.timer); if (d.line) d.line.remove(); if (d.tag) d.tag.remove();
+  document.body.classList.remove('blkdragging'); (d.ids || []).forEach(id => { const el = $('b-' + id); if (el) el.classList.remove('dragsrc'); });
+  try { d.h.releasePointerCapture(d.pid); } catch (e) {}
+  if (!commit || d.before === undefined) return;
+  // the blocks go between the block before the drop point and d.before (in the full order, so hidden blocks keep their place)
+  const rest = state.order.filter(id => !d.set.has(id));
+  const at = d.before ? rest.indexOf(d.before) : rest.length; if (at < 0) return;
+  const newOrder = rest.slice(0, at).concat(d.ids, rest.slice(at));
+  if (newOrder.join() === state.order.join()) return; // dropped where they already were
+  const prevId = rest[at - 1], nextId = rest[at];
+  let a = prevId ? state.blocks.get(prevId).pos : null, b = nextId ? state.blocks.get(nextId).pos : null;
+  if (a != null && b != null && (b - a) / (d.ids.length + 1) < 1e-6) { renumber(); a = state.blocks.get(prevId).pos; b = state.blocks.get(nextId).pos; }
+  const k = d.ids.length;
+  change(k > 1 ? 'move ' + k + ' blocks' : 'move block', d.ids, () => {
+    d.ids.forEach((id, i) => { const bl = state.blocks.get(id); if (!bl) return;
+      bl.pos = a != null && b != null ? a + (b - a) * (i + 1) / (k + 1) : a != null ? a + 1024 * (i + 1) : b != null ? b - 1024 * (k - i) : 1024 * (i + 1);
+      Store.saveBlock(state.docId, bl, 0); });
+  });
+  sortOrder(); renderAll();
+  if (k > 1) setSel(d.ids);
+  d.ids.forEach(id => { const el = $('b-' + id); if (el) { el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); } });
+}
+document.addEventListener('pointerdown', e => {
+  const h = e.target.closest && e.target.closest('#blocks > .blk > .gut [data-g="handle"]'); if (!h || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const id = h.closest('.blk').dataset.id; if (!state.blocks.has(id) || (typeof isInkDoc === 'function' && isInkDoc())) return;
+  blkDrag = { id, h, x: e.clientX, y: e.clientY, cx: e.clientX, cy: e.clientY, pid: e.pointerId, on: false };
+}, true);
+document.addEventListener('pointermove', e => {
+  const d = blkDrag; if (!d || e.pointerId !== d.pid) return;
+  if (!d.on) { if (Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5) return; blkDragStart(d); }
+  e.preventDefault(); blkDragMove(d, e);
+}, { capture: true, passive: false });
+document.addEventListener('pointerup', e => { const d = blkDrag; if (!d || e.pointerId !== d.pid) return; blkDrag = null; if (d.on) { blkDragEnd = Date.now(); blkDragFinish(d, true); } }, true);
+document.addEventListener('pointercancel', e => { const d = blkDrag; if (!d || e.pointerId !== d.pid) return; blkDrag = null; if (d.on) blkDragFinish(d, false); }, true);
+document.addEventListener('keydown', e => { const d = blkDrag; if (d && d.on && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); blkDrag = null; blkDragEnd = Date.now(); blkDragFinish(d, false); } }, true);
+// the click that ends a drag doesn't also select the block
+document.addEventListener('click', e => { if (Date.now() - blkDragEnd < 400 && e.target.closest && e.target.closest('[data-g="handle"]')) { e.stopPropagation(); e.preventDefault(); } }, true);
 function convertBlocks(ids, type) {
   change('turn into', ids, () => {
     for (const id of ids) {
