@@ -311,7 +311,7 @@ hr.div{border:0;border-top:1px solid var(--line);margin:14px 0}
 .toast{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:8px;font-size:13px;z-index:90;box-shadow:var(--shadow);display:flex;gap:12px;align-items:center}
 .toast button{background:none;border:0;color:inherit;text-decoration:underline;cursor:pointer;padding:0}
 .bx .bh a.ref{color:inherit;border-bottom-color:currentColor}
-.help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:8px;width:min(500px,calc(100% - 32px));max-height:calc(100% - 16px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;z-index:40}
+.help{position:absolute;right:max(16px,env(safe-area-inset-right,0px));top:8px;width:min(500px,calc(100% - 32px));max-height:calc(100% - 16px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;z-index:45}
 .help h2{font-size:15px;margin:0}
 .help h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 4px;font-weight:500}
 .help table{border-collapse:collapse;width:100%;font-size:12.5px}
@@ -9843,7 +9843,7 @@ function openPalette() {
   const all = () => Object.values(PAL).flat();
   const items = () => q ? all().filter(it => (it[1] + ' ' + it[0]).toLowerCase().includes(q.toLowerCase())).slice(0, 40) : PAL[cur];
   const drawGrid = () => { p.querySelector('.grid').innerHTML = items().map((it, k) => '<button data-k="' + k + '" title="types: ' + esc(it[1]) + '"><span class="g">' + km(it[0], false) + '</span><span class="w">' + esc(it[1].trim()) + '</span></button>').join('') || '<span class="hint">No match</span>'; };
-  p.innerHTML = '<input class="psearch" placeholder="Search symbols: lam, sum, chi, iid…" aria-label="Search symbols"><div class="ptabs">' + tabs.map(t => '<button data-t="' + t + '" aria-selected="' + (t === cur) + '">' + t + '</button>').join('') + '</div><div class="grid"></div><div class="hint" style="margin-top:6px">Inserts the plain words — you can type them yourself next time.</div><div class="fmode" role="group" aria-label="Clicking a formula"><span class="hint">Formulas:</span> <button data-fm="typst" aria-pressed="' + (fmode() === 'typst') + '">Typst + math above</button><button data-fm="words" aria-pressed="' + (fmode() === 'words') + '">Your words + math above</button><button data-fm="symbols" aria-pressed="' + (fmode() === 'symbols') + '">Symbols in place</button></div>';
+  p.innerHTML = '<input class="psearch" placeholder="Search symbols: lam, sum, chi, iid…" aria-label="Search symbols"><div class="ptabs">' + tabs.map(t => '<button data-t="' + t + '" aria-selected="' + (t === cur) + '">' + t + '</button>').join('') + '</div><div class="grid"></div><div class="hint" style="margin-top:6px">Inserts the plain words — you can type them yourself next time.</div><div class="fmode" role="group" aria-label="Clicking a formula"><span class="hint">Formulas:</span> <button data-fm="typst" aria-pressed="' + (fmode() === 'typst') + '">Typst + math above</button><button data-fm="words" aria-pressed="' + (fmode() === 'words') + '">Your words + math above</button><button data-fm="symbols" aria-pressed="' + (fmode() === 'symbols') + '">Symbols in place</button><div class="hint fmhint" style="flex-basis:100%;margin:0">' + FM_HINT[fmode()] + '</div></div>';
   document.body.appendChild(p); drawGrid();
   const anchor = document.querySelector('[data-f="symbols"]').getBoundingClientRect();
   p.style.left = Math.max(8, Math.min(window.innerWidth - p.offsetWidth - 8, anchor.left)) + 'px'; p.style.top = (anchor.bottom + 6) + 'px';
@@ -9852,7 +9852,7 @@ function openPalette() {
   srch.addEventListener('keydown', e => { if (e.key === 'Enter') { const b = p.querySelector('.grid button'); if (b) b.click(); } if (e.key === 'Escape') p.remove(); });
   p.addEventListener('mousedown', e => { if (!e.target.closest('.psearch')) e.preventDefault(); });
   p.addEventListener('click', e => {
-    const fm = e.target.closest('[data-fm]'); if (fm) { lsSet('nb.fmode', fm.dataset.fm); lsSet('nb.fmode.ty', '1'); C.setAutoMath(fm.dataset.fm !== 'typst'); RT.redrawMath(); p.querySelectorAll('[data-fm]').forEach(x => x.setAttribute('aria-pressed', String(x === fm))); return; }
+    const fm = e.target.closest('[data-fm]'); if (fm) { const fh = p.querySelector('.fmhint'); if (fh) fh.innerHTML = FM_HINT[fm.dataset.fm]; lsSet('nb.fmode', fm.dataset.fm); lsSet('nb.fmode.ty', '1'); C.setAutoMath(fm.dataset.fm !== 'typst'); RT.redrawMath(); p.querySelectorAll('[data-fm]').forEach(x => x.setAttribute('aria-pressed', String(x === fm))); return; }
     const t = e.target.closest('[data-t]'); if (t) { cur = t.dataset.t; lsSet('nb.palTab', cur); q = ''; srch.value = ''; p.querySelectorAll('[data-t]').forEach(x => x.setAttribute('aria-selected', x.dataset.t === cur)); drawGrid(); return; }
     const b = e.target.closest('[data-k]'); if (!b) return;
     const fld = state.field && document.body.contains(state.field) ? state.field : null;
@@ -11054,6 +11054,11 @@ function phraseHit(before) {
 const ML_EDIT = true; // MathLive's editor is available ("symbols in place")
 // how formulas are typed and edited (Equation Lab, Nov 9): 'typst' (the user's pick) = Typst source in the line with the finished math floating
 // above; 'words' = the notebook's own words; 'symbols' = MathLive's editor in place. Switch in the symbols palette (⌘;).
+const FM_HINT = {
+  typst: 'How you edit a formula: type it in Typst, e.g. <b>sum_(i=1)^n x_i</b>, with the finished math shown above while you type.',
+  words: 'How you edit a formula: type it in plain words, e.g. <b>sum from i=1 to n of x_i</b>, with the finished math shown above while you type.',
+  symbols: 'How you edit a formula: change the finished symbols directly, like an equation editor (fractions and subscripts are boxes you click into).',
+};
 const fmode = () => {
   let v = lsGet('nb.fmode') || 'typst';
   if (v === 'words' && lsGet('nb.fmode.ty') !== '1') { lsSet('nb.fmode', 'typst'); lsSet('nb.fmode.ty', '1'); v = 'typst'; } // moved to Typst once, Nov 9
