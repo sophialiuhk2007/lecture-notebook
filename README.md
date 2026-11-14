@@ -30,10 +30,18 @@ Asking about your notes, explanations, replies in comments, and turning handwrit
 
 Paste the key, pick a model from the list (it shows the models your key can use), and press **Connect**. Each provider keeps its own key, so you can switch back and forth. Usage is billed to your account with that provider. A claude.ai or ChatGPT subscription can't be used by other websites: the APIs are billed separately.
 
-**Harvard OpenAI** is for Harvard affiliates using the HUIT API Portal. Two things to know (as of November 2026):
+**Harvard OpenAI** is for Harvard affiliates using the HUIT API Portal. By default it uses the free **OpenAI for Community Developers** product (`go.apis.huit.harvard.edu/ais-openai-direct-comdev/v2`, $10 a month of credit, FAS and HUIT). For pay-as-you-go OpenAI Direct, set the gateway address to `…/ais-openai-direct/v2`. Use the app's **Key** from the portal, not the Secret, and check that the portal shows it approved: an unapproved key gets “ApiKey not approved”.
 
-- Harvard retired the v1 address on 10/1/26. The notebook uses v2 (`go.apis.huit.harvard.edu/ais-openai-direct/v2`). **v2 doesn't allow calls from web pages** (it doesn't answer the browser's CORS check), so from this website the requests are blocked until HUIT enables that, or until you put a small relay in between. Paste the relay's address under **⚙ Settings → AI → Harvard OpenAI → Gateway address**.
-- A key works only for the API product its app is subscribed to. A key for the Community Developer product isn't accepted on OpenAI Direct (the gateway answers “Invalid ApiKey for given resource”). That product's own docs in the portal (signed in) give its address; paste it under **Gateway address**.
+#### Harvard relay
+
+Harvard's gateway works from code but doesn't send the CORS headers browsers require, so the notebook can't call it directly from a web page. [`relay/huit-relay.js`](relay/huit-relay.js) is a small Cloudflare Worker that forwards the notebook's requests to Harvard unchanged and adds those headers. It stores nothing; each person's own key passes straight through. Set it up once:
+
+1. Make a free account at <https://dash.cloudflare.com/sign-up>.
+2. **Workers & Pages → Create → Create Worker**, give it a name (e.g. `huit-relay`), **Deploy**.
+3. **Edit code**: replace the code with [`relay/huit-relay.js`](relay/huit-relay.js), then **Deploy**. If your copy of the notebook lives somewhere other than `https://sophialiuhk2007.github.io`, add its address to `ALLOWED_ORIGINS` at the top first.
+4. In the notebook: **⚙ Settings → AI → Harvard OpenAI → Gateway address** = `https://huit-relay.<your-subdomain>.workers.dev/comdev` (or `/direct` for pay-as-you-go), paste your Key, **Connect**.
+
+The relay only forwards chat and model-list requests to Harvard's two OpenAI products, and only for pages from the allowed sites.
 
 The buttons in the notebook still say “Claude” (✦ Claude, Ask); with OpenAI chosen they use your OpenAI model.
 
