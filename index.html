@@ -252,7 +252,6 @@ hr.div{border:0;border-top:1px solid var(--line);margin:14px 0}
 .cmt .cfrom{display:flex;align-items:center;gap:6px;font:600 10.5px/1.3 var(--f-ui);color:var(--fk);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;min-width:0}
 .cmt .cfrom i{flex:none;width:9px;height:9px;border-radius:2px;background:var(--fk)}
 .cmt .cfrom b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.cmt .cfrom span{flex:none;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)}
 .cmt.fromblk .cb .katex-display{margin:.2em 0}
 .cmt .cr>span:first-child{white-space:nowrap}
 .cmt .ced{display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-top:6px}
@@ -648,9 +647,9 @@ body.inkdoc #blocks{height:var(--pvh,70vh);overflow:auto;overscroll-behavior:con
 body.inkdoc .blk-page{width:calc(var(--pz,1) * 100%);margin:0 auto 18px}
 body.inkdoc .cmts{overflow:hidden;overflow:clip;overflow-clip-margin:10px}
 .inkdocbar .fsonly{display:none}body.inkfull .inkdocbar .fsonly{display:contents}
-body.inkfull .body{grid-template-columns:minmax(0,1fr)!important}body.inkfull .side,body.inkfull .cmts,body.inkfull .rpanel{display:none!important}
+body.inkfull .body{grid-template-columns:minmax(0,1fr)!important}body.inkfull .side,body.inkfull .rpanel{display:none!important}
 body.inkfull header.bar,body.inkfull .tzoom,body.inkfull .showcmts,body.inkfull .ofab{display:none!important}body.inkfull .dtitle{display:none}
-body.inkfull .sheet{padding:8px 12px 16px;gap:0;grid-template-columns:minmax(0,1fr)!important}body.inkfull .paper{padding:8px 12px 40px;border-radius:6px}body.inkfull .dmeta{display:none}body.inkfull .dtitle{font-size:18px;margin-bottom:6px}
+body.inkfull .sheet{padding:8px 12px 16px;gap:0 16px;grid-template-columns:minmax(0,1fr) 250px!important}body.inkfull .cmts{display:block!important}body.inkfull.nocmts .sheet{grid-template-columns:minmax(0,1fr)!important}body.inkfull.nocmts .cmts{display:none!important}.inkdocbar [data-pa="cmts"][aria-pressed="true"]{color:var(--note);background:var(--note-soft)}body.inkfull .paper{padding:8px 12px 40px;border-radius:6px}body.inkfull .dmeta{display:none}body.inkfull .dtitle{font-size:18px;margin-bottom:6px}
 .zgrp{display:inline-flex;align-items:center;gap:0}.zgrp .zl{min-width:52px;padding:0 4px;font-variant-numeric:tabular-nums}
 .inkbar:not([data-tool="hl"]) .sw.hlc{display:none}.inkbar[data-tool="hl"] .sw.inkc{display:none}
 .inkbar .sw.hlc:not(.on){border-color:color-mix(in srgb,var(--ink) 18%,transparent)}
@@ -1003,8 +1002,8 @@ body.inkdoc #blocks{box-sizing:border-box}
 body.inkdoc .sheet{padding-bottom:12px}body.inkdoc .paper{padding-bottom:14px}
 .inkbar .fingr{white-space:nowrap}.inkbar .fingr.on{color:var(--accent)}
 @media (max-width:900px){.inkbar .fingr .fgl{display:none}}
-/* full screen: area comments need the comments column, which full screen hides */
-body.inkfull .inkdocbar [data-it="cbox"]{display:none}
+/* full screen on a phone: no room for the comments column (or the ▭ comment tool that needs it) */
+@media (max-width:600px){body.inkfull .sheet{grid-template-columns:minmax(0,1fr)!important}body.inkfull .cmts{display:none!important}body.inkfull .inkdocbar [data-it="cbox"],body.inkfull .inkdocbar [data-pa="cmts"]{display:none}}
 /* full screen on a phone: one row of tools that scrolls sideways (not three rows covering the page) */
 @media (max-width:600px){body.inkfull .inkdocbar .inkbar{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}body.inkfull .inkdocbar .inkbar::-webkit-scrollbar{display:none}body.inkfull .inkdocbar .inkbar>*{flex:0 0 auto}body.inkfull .inkdocbar{margin-bottom:6px}body.inkfull .sheet{padding:4px 4px 8px}body.inkfull .paper{padding:4px 6px 8px}}
 @media (max-width:1100px){.inkdocbar:not(.inhdr) .inkbar .ib{min-width:25px;padding:3px 3px}.inkdocbar:not(.inhdr) .inkbar .sw{width:18px;height:18px}.inkdocbar:not(.inhdr) .inkbar .vsep{margin:0 1px}}
@@ -7531,7 +7530,7 @@ function cmtCard(b, c) {
   const tick = '<label class="tocl" title="Claude replies in this thread"><input type="checkbox" data-ctoc' + tc + '><span>✦ Send to Claude</span></label>';
   const fb = c.from && !b.pdf ? c.from : null;
   return '<div class="cmt' + (c.who === 'claude' ? ' ai-c' : '') + (fb ? ' fromblk' : '') + (c.resolved ? ' resolved' : '') + (editing ? ' active' : '') + '" data-cb="' + b.id + '" data-cid="' + c.id + '"' + (fb ? ' style="--fk:' + fromColor(fb) + '"' : '') + '>' +
-    (fb ? '<div class="cfrom" title="This comment was a ' + esc(fromName(fb)) + ' block — ↩ Block puts it back"><i></i><b>' + esc(fromName(fb, true)) + '</b><span>· was a block</span></div>' : '') +
+    (fb ? '<div class="cfrom" title="This comment was a ' + esc(fromName(fb)) + ' block — ↩ Block puts it back"><i></i><b>' + esc(fromName(fb, true)) + '</b></div>' : '') +
     (c.quote ? '<div class="cq">' + inlineHtml(c.quote) + '</div>' : c.region ? '<div class="cq">▭ ' + esc(b.ink && b.ink.src ? 'area on ' + b.ink.src : 'area of the drawing') + '</div>' : '') +
     (editing ? '<textarea data-ctext="1" rows="2" placeholder="Comment… ($math$ works · mention the book or #book and Claude reads it)">' + esc(cmtDrafts['e:' + c.id] != null ? cmtDrafts['e:' + c.id] : (c.text || '')) + '</textarea><div class="ced">' + tick + '<div class="cbtns"><button class="btn" data-c="cancel">Cancel</button><button class="btn go" data-c="save">' + ((b.pdf ? !c.text : freshCmts.has(c.id)) ? 'Comment' : 'Save') + '</button></div></div>' + (reps ? '<div class="cthr">' + reps + '</div>' : '')
       : '<div class="cthr">' + (c.who === 'claude' ? '<div class="who cw">✦ Claude</div>' : '') + (c.text ? '<div class="cb">' + textHtml(c.text) + '</div>' : '') + reps + '</div>' +
@@ -7599,7 +7598,8 @@ function setCmtsHidden(on) {
   const n = ordered().reduce((a, b) => a + (b.comments || []).filter(c => !c.resolved).length, 0);
   const sb = $('showCmts'); if (sb) sb.querySelector('span').textContent = 'Show comments' + (n ? ' (' + n + ')' : '');
   const tg = $('cmtTog'); if (tg) { tg.setAttribute('aria-pressed', on ? 'true' : 'false'); tg.title = on ? 'Show comments' + (n ? ' (' + n + ')' : '') : 'Hide comments'; tg.setAttribute('aria-label', on ? 'Show comments' : 'Hide comments'); }
-  setTimeout(() => { if (typeof TZ !== 'undefined') TZ.refit(); layoutCmts(); }, 30);
+  document.querySelectorAll('#inkdocbar [data-pa="cmts"]').forEach(x => x.setAttribute('aria-pressed', String(!on)));
+  setTimeout(() => { if (typeof TZ !== 'undefined') TZ.refit(); if (typeof PZ !== 'undefined' && PZ.full) { PZ.layout(); PZ.repaint(); } layoutCmts(); }, 30);
 }
 // “Show resolved (n)” in the Comments header
 function updResolvedTog() { const bt = $('resCmts'); if (!bt) return; let n = 0; for (const b of ordered()) for (const c of (b.comments || [])) if (c.resolved && !viewHidden(b)) n++;
@@ -11764,7 +11764,7 @@ function inkDocBar() {
   const z = Math.round((typeof PZ !== 'undefined' ? PZ.z : 1) * 100);
   const typed = m.typed && state.docs.get(m.typed) && !state.docs.get(m.typed).trashed;
   // one slim row: drawing tools + full page + "⋯" (everything you set once per page lives in the menu)
-  bar.innerHTML = '<div class="inkbar" data-tool="' + esc(Ink.tool) + '" data-mode="page"><span class="fsonly"><button class="btn ib" data-pa="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button><button class="btn ib" data-pa="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button><span class="vsep"></span></span>' + Ink.toolsHtml() + '<span class="vsep"></span>' +
+  bar.innerHTML = '<div class="inkbar" data-tool="' + esc(Ink.tool) + '" data-mode="page"><span class="fsonly"><button class="btn ib" data-pa="undo" title="Undo (⌘Z)" aria-label="Undo">↶</button><button class="btn ib" data-pa="redo" title="Redo (⇧⌘Z)" aria-label="Redo">↷</button><button class="btn ib" data-pa="cmts" aria-pressed="' + !document.body.classList.contains('nocmts') + '" title="Show or hide comments" aria-label="Show or hide comments">💬</button><span class="vsep"></span></span>' + Ink.toolsHtml() + '<span class="vsep"></span>' +
     '<button class="btn ib' + (PZ.full ? ' on' : '') + '" data-pa="full" title="' + (PZ.full ? 'Leave full screen (Esc)' : 'Full screen — the pages fill the window (Esc to leave)') + '">⛶</button>' +
     '<span class="imwrap"><button class="btn ib" data-pa="more" title="Paper, pages, zoom, PDF, convert to typed notes" aria-haspopup="true">⋯</button><div class="inkmore" hidden>' +
       '<div class="imrow"><span class="iml">Zoom</span><span class="zgrp"><button class="btn ib" data-pa="zo" title="Zoom out (⌘−, pinch, or ⌘/Ctrl + scroll)">−</button><button class="btn zl" data-pa="zfit" title="Reset zoom (⌘0)">' + z + '%</button><button class="btn ib" data-pa="zi" title="Zoom in (⌘+, pinch, or ⌘/Ctrl + scroll)">+</button></span></div>' +
@@ -11800,6 +11800,7 @@ $('inkdocbar').addEventListener('click', e => {
   if (pa && pa.dataset.pa === 'zo') { PZ.zoomAt(PZ.z / 1.2); return; }
   if (pa && pa.dataset.pa === 'zfit') { PZ.zoomAt(1); return; }
   if (pa && pa.dataset.pa === 'full') { PZ.setFull(!PZ.full); return; }
+  if (pa && pa.dataset.pa === 'cmts') { const hide = !document.body.classList.contains('nocmts'); if (hide && Ink.tool === 'cbox') Ink.setTool(Ink.lastInk || 'pen'); setCmtsHidden(hide); return; }
   if (pa && pa.dataset.pa === 'undo') { undo(); return; }
   if (pa && pa.dataset.pa === 'redo') { redo(); return; }
   if (pa && pa.dataset.pa === 'export') { exportInkPdf(); return; }
@@ -12087,7 +12088,7 @@ var PZ = {
   // full screen: the pages fill the window (top bar, notes list and comments hidden; the drawing tools stay). Uses the browser's
   // real full screen when the page is allowed to; inside an embed that forbids it, the same layout simply covers the window.
   setFull(on) { if (on === PZ.full) return; const at = PZ.anchor(); const mm = document.querySelector('#inkdocbar .inkmore'); if (mm) mm.hidden = true; closePops();
-    if (on) { if (Ink.tool === 'cbox') Ink.setTool(Ink.lastInk || 'pen'); inkDropEmptyCmt(); } // the comments column is hidden in full screen
+    // (full screen keeps the comments column: area comments and their cards work there too)
     PZ.full = on; if (on) PZ.enterFs(); else PZ.exitFs(); placeInkBar(); PZ.layout(); PZ.repaint(); PZ.label(); PZ.restore(at); window.dispatchEvent(new Event('resize')); requestAnimationFrame(() => { PZ.layout(); PZ.restore(at); if (typeof layoutCmts === 'function') layoutCmts(); }); },
   // the page you're on and how far down it you are, so a change of layout (full screen, window size) doesn't lose your place
   anchor() { const bl = $('blocks'); const pages = ordered().filter(x => x.type === 'page'); const p = pages[pageInView()]; const el = p && $('b-' + p.id); if (!bl || !el) return null; const r = bl.getBoundingClientRect(), q = el.getBoundingClientRect(); return { id: p.id, f: (r.top - q.top) / (q.height || 1), x: bl.scrollWidth > bl.clientWidth ? (bl.scrollLeft + bl.clientWidth / 2) / bl.scrollWidth : null }; },
