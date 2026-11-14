@@ -193,7 +193,7 @@ a.ref.broken{color:var(--k-warn)}
 .studybar .meter i{display:block;height:100%;background:var(--note)}
 /* code */
 .codeb{position:relative;background:var(--code-bg);border:1px solid var(--line-2);border-radius:7px;overflow:hidden}
-.codeb .lang{position:absolute;right:40px;top:6px;font:11px var(--f-ui);color:var(--muted);display:flex;gap:8px;align-items:center}
+.codeb .lang{position:absolute;z-index:3;right:40px;top:6px;font:11px var(--f-ui);color:var(--muted);display:flex;gap:8px;align-items:center}
 .codeb pre{margin:0;padding:10px 12px;overflow:auto;font:13px/1.55 var(--f-mono);color:var(--code-ink);tab-size:4}
 .hljs-keyword,.hljs-built_in,.hljs-selector-tag,.hljs-literal{color:var(--tok-k)}
 .hljs-string,.hljs-regexp,.hljs-addition{color:var(--tok-s)}
@@ -7191,6 +7191,10 @@ function boxHead(b) {
 }
 function parseTable(src) { return String(src || '').split('\n').map(l => l.trim()).filter(l => l && !/^\|?\s*:?-{2,}/.test(l)).map(l => l.replace(/^\||\|$/g, '').split('|').map(c => c.trim())); }
 function rowsOf(b) { if (b.rows && b.rows.length) return b.rows; const r = parseTable(b.text); return r.length ? r : [['', ''], ['', '']]; }
+// the languages a code block offers, and what ```name means (user, Nov 14)
+const CODE_LANGS = ['python', 'r', 'julia', 'c', 'cpp', 'csharp', 'java', 'kotlin', 'swift', 'go', 'rust', 'javascript', 'typescript', 'html', 'css', 'json', 'yaml', 'sql', 'bash', 'ruby', 'php', 'lua', 'matlab', 'latex', 'markdown', 'text'];
+const CODE_ALIAS = { py: 'python', python3: 'python', 'c++': 'cpp', cc: 'cpp', cxx: 'cpp', hpp: 'cpp', h: 'c', 'c#': 'csharp', cs: 'csharp', js: 'javascript', jsx: 'javascript', node: 'javascript', ts: 'typescript', tsx: 'typescript', sh: 'bash', shell: 'bash', zsh: 'bash', console: 'bash', golang: 'go', rs: 'rust', kt: 'kotlin', rb: 'ruby', yml: 'yaml', md: 'markdown', tex: 'latex', jl: 'julia', m: 'matlab', txt: 'text', plain: 'text', plaintext: 'text', xml: 'html' };
+function codeLang(x) { x = String(x || '').trim().toLowerCase(); if (!x) return 'python'; return CODE_ALIAS[x] || x; }
 function codeHtml(code, lang) { try { if (window.hljs && lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang, ignoreIllegals: true }).value; } catch (e) {} return esc(code); }
 function imgSrc(img) { return img.asset ? BLOB(img.asset) : img.data || ''; }
 function viewHtml(b) {
@@ -7337,7 +7341,7 @@ function editorHtml(b) {
         '<div class="bb">' + rt(b.kind === 'ask' ? 'What do you want to ask?' : b.kind === 'proof' ? 'Proof steps… write “by Lemma 2” or use @ to refer back' : b.kind === 'fix' ? 'What was wrong, and the correct version…' : 'Statement… math in words works') + (b.kind === 'proof' ? '<span class="qed" contenteditable="false">∎</span>' : '') + '</div></div></div>';
     }
     case 'code': {
-      const langs = ['python', 'r', 'julia', 'c', 'cpp', 'java', 'javascript', 'sql', 'bash', 'matlab', 'latex', 'text'];
+      const langs = CODE_LANGS.includes(b.lang || 'python') ? CODE_LANGS : CODE_LANGS.concat([b.lang]);
       return '<div class="ed ip"><div class="codeb"><div class="lang"><select data-field="lang" aria-label="Language">' + langs.map(l => '<option' + ((b.lang || 'python') === l ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></div>' + '<div class="codeed"><pre class="codehl" aria-hidden="true"><code>' + codeHtml(b.text || '', b.lang || 'python') + '\n</code></pre>' + ta('# code', 'ip-text ip-code') + '</div>' + '</div></div>';
     }
     case 'table': {
@@ -9067,7 +9071,7 @@ function maybeShortcut(b, f) {
   const v = f.value; let m;
   if ((m = v.match(/^(#{1,3})\s$/))) { b.text = ''; convertBlocks([b.id], 'h' + m[1].length); return true; }
   if (/^(\$\$|eq:)\s$/i.test(v)) { b.text = ''; convertBlocks([b.id], 'math'); return true; }
-  if ((m = v.match(/^```(\w*)\s$/))) { b.text = ''; b.lang = m[1] || 'python'; convertBlocks([b.id], 'code'); return true; }
+  if ((m = v.match(/^```([\w+#.-]*)\s$/))) { b.text = ''; b.lang = codeLang(m[1]); convertBlocks([b.id], 'code'); return true; }
   if (/^---$/.test(v)) { b.text = ''; convertBlocks([b.id], 'divider'); insertAfter(b.id, 'p'); return true; }
   if (/^\|\s$/.test(v)) { b.text = ''; convertBlocks([b.id], 'table'); return true; } // "| " (the space isn't left in the first cell; "|x| …" stays text)
   if (/^(draw|ink|sketch):\s$/i.test(v)) { b.text = ''; convertBlocks([b.id], 'ink'); return true; }
@@ -9129,6 +9133,8 @@ blocksEl.addEventListener('keydown', e => {
       else { const ind = rest.match(/^[ \u00a0]*/)[0].length; const k = Math.min(2, ind); if (k) { f.setRangeText('', s, s + k); f.setSelectionRange(Math.max(s, c0 - k), Math.max(s, c0 - k)); f.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertReplacementText' })); } }
       return; }
   }
+  // ```python + Enter: a code block in that language (the space version is in maybeShortcut)
+  if (e.key === 'Enter' && !e.shiftKey && !mod && b && b.type === 'p' && f.dataset.field === 'text') { const m = String(f.value || '').replace(/[\u200b\uFEFF]/g, '').match(/^\s*```([\w+#.-]*)\s*$/); if (m) { e.preventDefault(); b.text = ''; b.lang = codeLang(m[1]); convertBlocks([b.id], 'code'); return; } }
   if (isTA(f) && e.key === 'Enter' && !e.shiftKey && !mod) {
     const s = f.value.lastIndexOf('\n', f.selectionStart - 1) + 1; const line = f.value.slice(s, f.selectionStart);
     const lm = line.match(/^([ \u00a0\t]*)([-•◦▪☐☑+]|(\d+)([.)]))\s(.*)$/);
