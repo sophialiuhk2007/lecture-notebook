@@ -772,7 +772,7 @@ body.rsdrag,body.rsdrag *{cursor:ns-resize!important;user-select:none!important}
 .sn .blk{padding:2px 0}.sn .blk.aside{opacity:.95}.sn .drawbox{width:100%}.sn .blk.snflash{background:color-mix(in srgb,var(--accent) 12%,transparent);transition:background .3s}
 .rbody:has(> .snpage){overflow:hidden}
 @media (max-width:1400px){.bar{gap:4px}.bar .ib{padding:0 6px;min-width:28px}.bar .seg button{padding-left:7px;padding-right:7px}}
-@media (max-width:1300px){.bar{gap:2px}.bar .ib{padding:0 5px}#helpBtn{display:none}}@media (max-width:1460px){#helpBtn{display:none}#saveState{width:70px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:center}#saveState.ok{visibility:hidden}}
+@media (max-width:1300px){.bar{gap:2px}.bar .ib{padding:0 5px}}@media (max-width:1460px){#saveState{width:70px;box-sizing:border-box;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:center}#saveState.ok{visibility:hidden}}
 body.nocmts .cmts{display:none!important}body.nocmts .cmtinline{display:none!important}body.nocmts .sheet{grid-template-columns:minmax(0,calc(760px * var(--tz,1)))!important}body.nocmts.tzfix:not(.pz) .sheet{grid-template-columns:calc(var(--pw) * var(--tz))!important}
 body.nocmts .cmta{text-decoration:none;background:none!important}body.nocmts .cmta .katex{border-bottom:0}
 .cmts .mh{display:flex;align-items:center}.cmts .mh .mhide{margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px;padding:0}
@@ -977,15 +977,15 @@ body.readfull .rpanel{padding:env(safe-area-inset-top,0px) env(safe-area-inset-r
 .barmore{display:none}
 /* any width: when the bar would wrap, first the title and button labels go, then the least-used buttons move into ⋯ (fitBar picks the step) */
 body.bfit2 header.bar .barmore,body.bfit3 header.bar .barmore,body.bfit4 header.bar .barmore{display:inline-flex}
-body.bfit1 header.bar .brand,body.bfit1 header.bar .lbl,body.bfit1 #helpBtn{display:none!important}
-body.bfit2 header.bar .brand,body.bfit2 header.bar .lbl,body.bfit2 #helpBtn,body.bfit2 #asideBtn,body.bfit2 #splitBtn,body.bfit2 #scrBtn{display:none!important}
-body.bfit3 header.bar .brand,body.bfit3 header.bar .lbl,body.bfit3 #helpBtn,body.bfit3 #setBtn,body.bfit3 #asideBtn,body.bfit3 #splitBtn,body.bfit3 #scrBtn,body.bfit3 #findBtn,body.bfit3 #cmtTog,body.bfit3 #reviewBtn,body.bfit3 #driveBtn{display:none!important}
-body.bfit4 header.bar .brand,body.bfit4 header.bar .lbl,body.bfit4 #helpBtn,body.bfit4 #setBtn,body.bfit4 #asideBtn,body.bfit4 #splitBtn,body.bfit4 #scrBtn,body.bfit4 #findBtn,body.bfit4 #cmtTog,body.bfit4 #reviewBtn,body.bfit4 #driveBtn,body.bfit4 header.bar .seg,body.bfit4 #saveState:not(.warn){display:none!important}
+body.bfit1 header.bar .brand,body.bfit1 header.bar .lbl{display:none!important}
+body.bfit2 header.bar .brand,body.bfit2 header.bar .lbl,body.bfit2 #asideBtn,body.bfit2 #splitBtn,body.bfit2 #scrBtn{display:none!important}
+body.bfit3 header.bar .brand,body.bfit3 header.bar .lbl,body.bfit3 #setBtn,body.bfit3 #asideBtn,body.bfit3 #splitBtn,body.bfit3 #scrBtn,body.bfit3 #findBtn,body.bfit3 #cmtTog,body.bfit3 #reviewBtn,body.bfit3 #driveBtn{display:none!important}
+body.bfit4 header.bar .brand,body.bfit4 header.bar .lbl,body.bfit4 #setBtn,body.bfit4 #asideBtn,body.bfit4 #splitBtn,body.bfit4 #scrBtn,body.bfit4 #findBtn,body.bfit4 #cmtTog,body.bfit4 #reviewBtn,body.bfit4 #driveBtn,body.bfit4 header.bar .seg,body.bfit4 #saveState:not(.warn){display:none!important}
 @media (max-width:560px){
   header.bar{flex-wrap:nowrap;gap:2px;padding-block:5px}
   header.bar .barmore{display:inline-flex}
   .ofab{display:none!important}
-  header.bar>.vsep,header.bar .seg,#saveState:not(.warn),#exportBtn,#cmtTog,#findBtn,#asideBtn,#reviewBtn,#splitBtn,#scrBtn,#helpBtn,#driveBtn{display:none!important}
+  header.bar>.vsep,header.bar .seg,#saveState:not(.warn),#exportBtn,#cmtTog,#findBtn,#asideBtn,#reviewBtn,#splitBtn,#scrBtn,#driveBtn{display:none!important}
   header.bar #fmt{flex-wrap:nowrap;min-width:0;overflow:hidden}
   header.bar #fmt>:not([data-f="undo"]):not([data-f="redo"]):not([data-f="insert"]):not([data-f="claude"]){display:none}
   header.bar .ib{padding:0 6px}
@@ -17104,6 +17104,7 @@ $('barMore').addEventListener('mousedown', e => e.preventDefault());
 function fitBar() {
   const bd = document.body, hdr = document.querySelector('header.bar'); if (!hdr) return;
   bd.classList.remove('bfit1', 'bfit2', 'bfit3', 'bfit4');
+  if (bd.classList.contains('inkdoc')) { const ib = $('inkdocbar'); if (ib && ib.classList.contains('inhdr') && (hdr.scrollWidth > hdr.clientWidth + 1 || hdr.offsetHeight > 54)) placeInkBar(); }
   if (bd.classList.contains('inkdoc') || bd.classList.contains('inkfull') || innerWidth <= 560) return;
   const wraps = () => { let lo = Infinity, hi = -Infinity; for (const c of hdr.children) { if (!c.offsetParent || !c.offsetWidth) continue; const t = c.offsetTop + c.offsetHeight / 2; lo = Math.min(lo, t); hi = Math.max(hi, t); } return hi - lo > 12; }; // (centres: the spacer and dividers sit lower than the buttons' tops)
   for (const k of ['bfit1', 'bfit2', 'bfit3', 'bfit4']) { if (!wraps()) return; bd.classList.remove('bfit1', 'bfit2', 'bfit3', 'bfit4'); bd.classList.add(k); }
