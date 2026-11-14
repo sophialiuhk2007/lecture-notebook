@@ -16284,6 +16284,32 @@ async function saveFile(name, data) {
   try { const blob = data instanceof Blob ? data : new Blob([data]); const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; a.rel = 'noopener'; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast('Downloading ' + name); return true; }
   catch (e) { toast(/\.zip$/i.test(name) ? 'Couldn’t save the file here — use Copy LaTeX instead.' : /\.pdf$/i.test(name) ? 'Couldn’t save the PDF here.' : 'Couldn’t save the file.'); return false; }
 }
+// ---------------------------------------------------------------- the whole notebook as one file (v169): the file the website's
+// "Restore from a backup file" reads, so notes move from here to the website (or to another account's copy)
+async function backupNotebookFile() {
+  if (Store.mode !== 'db' || !Store.db) { toast('Nothing to back up here yet'); return; }
+  toast('Packing your notebook…');
+  const out = { app: 'lecture-notebook', v: 1, saved: now(), from: window.__web ? 'web' : 'claude.ai', docs: {}, blobs: {} };
+  const col = async (p) => { try { return (await Store.db.collection(p).get()).docs.map(d => [d.id, plainData(d)]); } catch (e) { return []; } };
+  for (const [id, m] of await col('docs')) {
+    if (m) out.docs['docs/' + id] = m;
+    for (const sub of ['blocks', 'inkx', 'chat']) for (const [k, v] of await col('docs/' + id + '/' + sub)) if (v != null) out.docs['docs/' + id + '/' + sub + '/' + k] = v;
+  }
+  for (const [key, c] of await col('courses')) {
+    if (c) out.docs['courses/' + key] = c;
+    for (const [k, v] of await col('courses/' + key + '/ann')) if (v != null) out.docs['courses/' + key + '/ann/' + k] = v;
+  }
+  // the pictures and PDFs the notes and readings use (stored files have 32-character ids)
+  const ids = new Set((JSON.stringify(out.docs).match(/"[0-9a-f]{32}"/g) || []).map(x => x.slice(1, -1)));
+  let files = 0;
+  for (const id of ids) {
+    try { const r = await fetch(BLOB(id)); if (!r.ok) continue; const b = await r.blob(); if (!b.size) continue; out.blobs[id] = { type: b.type || 'application/octet-stream', data: await Drive.b64(b) }; files++; } catch (e) {}
+  }
+  const notes = Object.keys(out.docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
+  const ok = await saveFile('lecture-notebook-backup-' + now().slice(0, 10) + '.json', new Blob([JSON.stringify(out)], { type: 'application/json' }));
+  if (ok) toast('Backed up ' + notes + ' note' + (notes === 1 ? '' : 's') + ' and ' + files + ' picture' + (files === 1 ? '' : 's') + ' / PDF' + (files === 1 ? '' : 's') + ' — on the website: Export → Restore from a backup file');
+}
+window.__nbBackupFile = backupNotebookFile;
 async function exportZip(opt) {
   const zip = new JSZip(); const ext = {};
   for (const b of ordered()) {
@@ -16319,7 +16345,7 @@ $('exportBtn').onclick = () => {
     { html: (state.showResolved ? 'Hide' : 'Show') + ' resolved comments', fn: () => { state.showResolved = !state.showResolved; renderAll(); } },
     { sep: 1 },
     { html: 'Help & shortcuts<small>? or ' + (isMac ? '⌘/' : 'Ctrl+/') + '</small>', fn: () => toggleHelp(true) }
-  ].concat(window.__web ? window.__web.menu() : []));
+  ].concat(window.__web ? window.__web.menu() : [{ sep: 1 }, { html: '⤓ Back up whole notebook to a file<small>everything — open it on the website or another account</small>', fn: backupNotebookFile }]));
 };
 
 // phone / small iPad: the notes drawer sits over a dim backdrop; a tap on it only closes the drawer (it doesn't reach the page underneath)
