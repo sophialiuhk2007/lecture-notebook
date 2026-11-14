@@ -26,11 +26,14 @@ Asking about your notes, explanations, replies in comments, and turning handwrit
 |---|---|---|---|
 | Get a key | <https://console.anthropic.com/settings/keys> | <https://platform.openai.com/api-keys> | [HUIT API Portal](https://portal.apis.huit.harvard.edu/): your app's **Key** (not the Secret) |
 | Key looks like | `sk-ant-…` | `sk-…` / `sk-proj-…` | letters and digits, no `sk-` |
-| Sent only to | `api.anthropic.com` | `api.openai.com` | `go.apis.huit.harvard.edu` |
+| Sent only to | `api.anthropic.com` | `api.openai.com` | `go.apis.huit.harvard.edu` (or the gateway address you set) |
 
 Paste the key, pick a model from the list (it shows the models your key can use), and press **Connect**. Each provider keeps its own key, so you can switch back and forth. Usage is billed to your account with that provider. A claude.ai or ChatGPT subscription can't be used by other websites: the APIs are billed separately.
 
-**Harvard OpenAI** is for Harvard affiliates using the HUIT API Portal (including the free Community Developer tier). Your app's access to the OpenAI API has to be approved first: until then the portal shows the key as “Partially active”, and the gateway turns requests down. The gateway doesn't tell web pages why it refused, so the notebook can only say that it did.
+**Harvard OpenAI** is for Harvard affiliates using the HUIT API Portal. Two things to know (as of November 2026):
+
+- Harvard retired the v1 address on 10/1/26. The notebook uses v2 (`go.apis.huit.harvard.edu/ais-openai-direct/v2`). **v2 doesn't allow calls from web pages** (it doesn't answer the browser's CORS check), so from this website the requests are blocked until HUIT enables that, or until you put a small relay in between. Paste the relay's address under **⚙ Settings → AI → Harvard OpenAI → Gateway address**.
+- A key works only for the API product its app is subscribed to. A key for the Community Developer product isn't accepted on OpenAI Direct (the gateway answers “Invalid ApiKey for given resource”). That product's own docs in the portal (signed in) give its address; paste it under **Gateway address**.
 
 The buttons in the notebook still say “Claude” (✦ Claude, Ask); with OpenAI chosen they use your OpenAI model.
 
