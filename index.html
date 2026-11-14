@@ -777,7 +777,8 @@ body.rsdrag,body.rsdrag *{cursor:ns-resize!important;user-select:none!important}
 body.nocmts .cmts{display:none!important}body.nocmts .cmtinline{display:none!important}body.nocmts .sheet{grid-template-columns:minmax(0,calc(760px * var(--tz,1)))!important}body.nocmts.tzfix:not(.pz) .sheet{grid-template-columns:calc(var(--pw) * var(--tz))!important}
 body.nocmts .cmta{text-decoration:none;background:none!important}body.nocmts .cmta .katex{border-bottom:0}
 .cmts .mh{display:flex;align-items:center}.cmts .mh .mhide{margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px;padding:0}
-.cmtpill{position:sticky;top:10px;height:0;z-index:25;display:flex;justify-content:flex-end;align-items:flex-start;pointer-events:none}.cmtpill.inrow{height:auto}
+.cmtpill{position:sticky;top:10px;height:0;z-index:25;display:flex;justify-content:flex-end;align-items:flex-start;pointer-events:none}.cmtpill.inrow{top:0;height:auto;background:var(--desk);pointer-events:auto;z-index:43}.cmtpill.inrow .showcmts{margin:6px 14px 6px 0}
+#cmts .mh{top:var(--pillrow,0px)}
 body.pdfpage .cmtpill{position:absolute;top:0;right:0;left:auto;height:auto;z-index:60}body.pdfpage .cmtpill .showcmts{margin:8px 12px 0 0}
 .showcmts{pointer-events:auto;flex:none;margin:10px 14px 0 0;display:inline-flex;align-items:center;gap:5px;font:12.5px var(--f-ui);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px 10px;box-shadow:var(--shadow);cursor:pointer}
 .showcmts:hover{color:var(--ink)}.rgrip{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:6;touch-action:none}
@@ -8425,10 +8426,10 @@ $('showCmts').onclick = () => { if (document.body.classList.contains('pdfpage') 
 if (lsGet('nb.hideCmts') === '1') { document.body.classList.add('nocmts'); const tg = $('cmtTog'); if (tg) { tg.title = 'Show comments'; tg.setAttribute('aria-pressed', 'true'); tg.setAttribute('aria-label', 'Show comments'); } }
 setTimeout(updCmtPill, 0);
 function fitCmtPill() {
-  const row = $('cmtPill'), b = $('showCmts'); if (!row || !b) return; row.classList.remove('inrow'); if (document.body.classList.contains('pdfpage')) return;
+  const row = $('cmtPill'), b = $('showCmts'); if (!row || !b) return; row.classList.remove('inrow'); if (document.body.classList.contains('pdfpage')) { document.body.style.setProperty('--pillrow', '0px'); return; }
   const r = b.getBoundingClientRect(); if (!r.width) return;
   const hit = [...document.querySelectorAll('#sheet .paper, #cmts')].some(el => { if (!el.offsetParent) return false; const q = el.getBoundingClientRect(); return q.width && r.left < q.right + 6 && r.right > q.left - 6; });
-  if (hit) row.classList.add('inrow');
+  if (hit) row.classList.add('inrow'); document.body.style.setProperty('--pillrow', hit ? row.offsetHeight + 'px' : '0px');
 }
 { let raf = 0; const go = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; fitCmtPill(); }); };
   window.__fitPill = go; window.addEventListener('resize', go); if (window.ResizeObserver) { const ro = new ResizeObserver(go); ro.observe($('scroll')); ro.observe($('sheet')); } setTimeout(go, 300); }
