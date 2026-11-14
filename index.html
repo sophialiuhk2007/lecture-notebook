@@ -245,6 +245,15 @@ hr.div{border:0;border-top:1px solid var(--line);margin:14px 0}
 .cmt textarea{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);padding:5px 7px;font:12.5px/1.45 var(--f-mono);resize:vertical;min-height:52px}
 .cmt .cbtns{display:flex;justify-content:flex-end;gap:6px}
 .cmt .cr{display:flex;gap:8px;margin-top:5px;font-size:12px;color:var(--muted);align-items:center}
+/* a comment that used to be a block: the card keeps the colour and name of the block type it came from */
+.cmt.fromblk{border-left-color:var(--fk);background:color-mix(in srgb,var(--fk) 8%,var(--panel))}
+.cmt.fromblk.sel{border-color:color-mix(in srgb,var(--fk) 55%,var(--line));border-left-color:var(--fk)}
+.cmt.fromblk.hot{box-shadow:0 0 0 2px var(--fk),var(--shadow)}
+.cmt .cfrom{display:flex;align-items:center;gap:6px;font:600 10.5px/1.3 var(--f-ui);color:var(--fk);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;min-width:0}
+.cmt .cfrom i{flex:none;width:9px;height:9px;border-radius:2px;background:var(--fk)}
+.cmt .cfrom b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.cmt .cfrom span{flex:none;font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)}
+.cmt.fromblk .cb .katex-display{margin:.2em 0}
 .cmt .cr>span:first-child{white-space:nowrap}
 .cmt .ced{display:flex;flex-direction:column;align-items:stretch;gap:6px;margin-top:6px}
 .cmt .ced .tocl{align-self:flex-start}
@@ -816,9 +825,9 @@ body.rpdrag,body.rpdrag *{cursor:ew-resize!important;user-select:none!important}
 .docrow.rdrow[aria-current="true"] .docitem{background:var(--note-soft)}
 .reader.ep{container-type:inline-size}
 .reader .rvrow{display:flex;flex:1;min-height:0;min-width:0}.reader .rvrow>.rview{flex:1 1 auto;min-width:0}
-.reader .rcmts{flex:0 0 min(300px,40%);min-width:0;overflow-y:auto;overscroll-behavior:contain;border-left:1px solid var(--line);background:var(--desk);padding:8px;display:flex;flex-direction:column;gap:8px}
+.reader .rcmts{flex:0 0 min(250px,45%);min-width:0;overflow-y:auto;overscroll-behavior:contain;border-left:1px solid var(--line);background:var(--desk);padding:8px;display:flex;flex-direction:column;gap:8px}
 .reader .rcmts[hidden]{display:none}
-@container (max-width:560px){.reader .rvrow{flex-direction:column}.reader .rcmts{flex:0 0 auto;max-height:42%;border-left:0;border-top:1px solid var(--line)}}
+@container (max-width:560px){.reader .rvrow{flex-direction:column}.reader .rcmts{flex:0 0 auto;max-height:42%;border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(auto-fill,250px);align-content:start;align-items:start}.reader .rcmts>:not(.pcmt){grid-column:1/-1}}
 .rcmts .pchd{display:flex;align-items:center;gap:6px;font:600 11.5px var(--f-ui);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}.rcmts .pchd .grow{flex:1}
 .cmt.pcmt{position:relative;top:auto!important;left:auto;right:auto;transform:none!important;flex:none}
 .cmt.pcmt.ai-p{border-left-color:var(--accent)}
@@ -860,7 +869,7 @@ body.pdfpage #fmt,body.pdfpage .bar .seg.wide,body.pdfpage #cmtTog,body.pdfpage 
 .reader.pg .pgnone{position:absolute;left:0;right:0;top:var(--pclt,48px);font:12.5px/1.45 var(--f-ui);color:var(--muted)}
 .reader.pg .pgshow{position:absolute;right:16px;top:14px;z-index:3;display:inline-flex;align-items:center;gap:5px;font:12.5px var(--f-ui);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px 10px;box-shadow:var(--shadow);cursor:pointer}
 .reader.pg .pgshow:hover{color:var(--ink)}
-@container pgr (max-width:1000px){.reader.pg{grid-template-columns:minmax(0,860px) 214px;column-gap:16px}.reader.pg.nocm{grid-template-columns:minmax(0,860px)}}
+@container pgr (max-width:1000px){.reader.pg{grid-template-columns:minmax(0,860px) 250px;column-gap:16px}.reader.pg.nocm{grid-template-columns:minmax(0,860px)}}
 @container pgr (max-width:1000px){.reader.pg .pch>span:nth-child(2){display:none}}
 .reader.pg .pch{white-space:nowrap;min-width:0}
 @container pgr (max-width:740px){.reader.pg{grid-template-columns:minmax(0,1fr)!important;padding:0 10px}.reader.pg .rcmts{display:none!important}.reader.pg .pgshow{display:none}}
@@ -6883,6 +6892,90 @@ function convertBlocks(ids, type) {
   else renderAll();
   if (one && one.type === 'image' && !(one.img.asset || one.img.data)) { state.imgTarget = one.id; $('fileIn').click(); }
 }
+// ---------------------------------------------------------------- 💬 a block becomes a comment, and back (v161)
+// The block leaves the page and becomes a margin comment on the nearest block above it (or below, if it was first).
+// The card keeps the colour and name of the type it was (Theorem, Equation, Code…); "↩ Block" puts it back as it was,
+// with any edits made to the comment's text. One undo step either way.
+const CMT_FROM_OK = new Set(['p', 'h1', 'h2', 'h3', 'math', 'box', 'code', 'table']);
+function canBeComment(id) { const b = state.blocks.get(id); return !!(b && CMT_FROM_OK.has(b.type) && !b.pdf); }
+function fromColor(f) {
+  const k = f.kind || '';
+  if (f.type === 'box') return k === 'def' ? 'var(--k-def)' : /^(thm|prop|lem|cor|conj|claim)$/.test(k) ? 'var(--k-thm)' : k === 'ex' ? 'var(--k-ex)' : k === 'pencil' ? 'var(--k-pencil)'
+    : /^(warn|fix)$/.test(k) ? 'var(--k-warn)' : /^(rmk|intu)$/.test(k) ? 'var(--k-rmk)' : k === 'motiv' ? 'var(--k-motiv)' : k === 'ask' ? 'var(--ask)' : k === 'proof' ? 'var(--muted)' : 'var(--accent)';
+  return /^h[123]$/.test(f.type) ? 'var(--accent)' : f.type === 'math' ? 'var(--tok-k)' : f.type === 'code' ? 'var(--tok-f)' : f.type === 'table' ? 'var(--tok-n)' : 'var(--muted)';
+}
+function fromName(f, full) {
+  const t = f.type === 'box' ? ((KINDS[f.kind] || {}).label || 'Box') : ((TYPES.find(x => x[0] === f.type) || [])[1] || 'Text');
+  if (!full) return t;
+  const lab = f.type === 'box' ? (f.label || t) : f.type === 'math' && f.label ? 'Equation ' + f.label : t;
+  return lab + (f.title && !lab.includes(f.title) ? ' (' + f.title + ')' : '');
+}
+const FENCE = '```';
+function blockToCmtText(b) {
+  if (b.type === 'math') return eqToText(b.text || '');
+  if (b.type === 'code') return FENCE + (b.lang || '') + '\n' + (b.text || '') + '\n' + FENCE;
+  if (b.type === 'table') return rowsOf(b).map(r => '| ' + r.join(' | ') + ' |').join('\n');
+  return b.text || '';
+}
+function cmtTextToBlock(nb, t) {
+  if (nb.type === 'math') nb.text = textToEq(t);
+  else if (nb.type === 'code') nb.text = t.replace(/^\s*```[^\n]*\n?/, '').replace(/\n?```\s*$/, '');
+  else if (nb.type === 'table') { const r = parseTable(t); if (r.length) { nb.rows = r; nb.text = ''; } }
+  else nb.text = t;
+}
+function blocksToComments(ids) {
+  ids = state.order.filter(x => ids.includes(x) && canBeComment(x));
+  if (!ids.length) { toast('Text, headings, equations, boxes, code and tables can become comments'); return; }
+  const gone = new Set(ids);
+  // each block goes to the nearest block above that stays (else the nearest below)
+  const plan = ids.map(id => { const i = state.order.indexOf(id); let host = null, below = false;
+    for (let j = i - 1; j >= 0 && !host; j--) if (!gone.has(state.order[j])) host = state.order[j];
+    if (!host) for (let j = i + 1; j < state.order.length && !host; j++) if (!gone.has(state.order[j])) { host = state.order[j]; below = true; }
+    return { id, host, below }; });
+  if (plan.some(x => !x.host)) { toast('A comment needs a block to sit next to — add another block first'); return; }
+  if (state.editing) stopEdit();
+  computeNums();
+  const hosts = [...new Set(plan.map(x => x.host))]; const made = [];
+  change(ids.length > 1 ? 'turn ' + ids.length + ' blocks into comments' : 'turn into comment', ids.concat(hosts), () => {
+    for (const { id, host, below } of plan) {
+      const b = state.blocks.get(id), hb = state.blocks.get(host); if (!b || !hb) continue;
+      const keep = clone(b); delete keep.comments;
+      const text = blockToCmtText(b);
+      const c = { id: uid('c'), quote: '', text, who: 'me', created: now(),
+        from: { id: b.id, type: b.type, kind: b.kind || null, title: b.title || '', label: (state.nums[id] || {}).label || '', below, text, block: keep } };
+      made.push(c.id);
+      hb.comments = (hb.comments || []).concat([c], b.comments || []); // the block's own comment threads move with it
+      Store.saveBlock(state.docId, hb, 0);
+      state.blocks.delete(id); Store.deleteBlock(state.docId, id);
+    }
+  });
+  sortOrder(); clearSel();
+  if (document.body.classList.contains('nocmts')) setCmtsHidden(false);
+  state.activeCmt = made[0] || null; renderAll();
+  toast(ids.length > 1 ? ids.length + ' blocks turned into comments' : 'Turned into a comment — ↩ Block on the card puts it back', 'Undo', undo);
+}
+function commentToBlock(hb, c) {
+  const f = c.from; if (!f || !f.block || !state.blocks.has(hb.id)) return;
+  if (state.editing) stopEdit();
+  const nb = clone(f.block); nb.id = state.blocks.has(f.id) ? uid('b') : f.id;
+  if ((c.text || '') !== (f.text || '')) cmtTextToBlock(nb, c.text || ''); // edited while it was a comment: keep the edits
+  // back where it was, if that spot is still next to the same block; else right after (or before) it
+  const i = state.order.indexOf(hb.id), prev = state.blocks.get(state.order[i - 1]), next = state.blocks.get(state.order[i + 1]);
+  const p0 = f.block.pos;
+  if (!f.below) nb.pos = p0 > hb.pos && (!next || p0 < next.pos) ? p0 : posAfter(hb.id);
+  else nb.pos = p0 < hb.pos && (!prev || p0 > prev.pos) ? p0 : ((prev ? prev.pos : hb.pos - 2048) + hb.pos) / 2;
+  const thread = (c.replies || []).filter(r => r && r.text && !r.pending);
+  if (thread.length) nb.comments = [{ id: uid('c'), quote: '', text: '', who: 'me', created: c.created, replies: thread }]; // its replies stay with it
+  change('comment back to block', [hb.id], () => {
+    hb.comments = (hb.comments || []).filter(x => x.id !== c.id); Store.saveBlock(state.docId, hb, 0);
+    state.blocks.set(nb.id, nb); Store.saveBlock(state.docId, nb, 0);
+    return [nb.id];
+  });
+  if (state.activeCmt === c.id) state.activeCmt = null;
+  sortOrder(); renderAll();
+  const el = $('b-' + nb.id); if (el) { el.classList.add('flash'); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setTimeout(() => el.classList.remove('flash'), 1500); }
+  toast('Back in the notes as a ' + fromName(f), 'Undo', undo);
+}
 function duplicateBlocks(ids) {
   const sorted = state.order.filter(x => ids.includes(x)); let after = sorted[sorted.length - 1]; const made = [];
   for (const id of sorted) { const c = clone(state.blocks.get(id)); delete c.comments; c.id = uid('b'); c.pos = posAfter(after); state.blocks.set(c.id, c); sortOrder(); Store.saveBlock(state.docId, c, 0); made.push(c.id); after = c.id; }
@@ -6904,7 +6997,7 @@ $('selbar').addEventListener('mousedown', e => e.preventDefault());
 $('selbar').addEventListener('click', e => {
   const b = e.target.closest('[data-s]'); if (!b) return; const ids = selIds();
   switch (b.dataset.s) {
-    case 'turn': openMenu(b, (ids.length > 1 ? [{ head: 'Combine into one box' }].concat(['prob', 'sol', 'proof', 'thm', 'lem', 'claim', 'def', 'ex', 'rmk'].map(k => ({ html: '⧉ One ' + esc(KINDS[k].label) + '<small>merge the ' + ids.length + ' blocks</small>', fn: () => combineBlocks(ids, k) }))).concat([{ sep: 1 }, { head: 'Turn each into' }]) : []).concat(TYPES.filter(t => !['image', 'ink', 'divider'].includes(t[0])).map(t => ({ html: esc(t[1]) + '<small>' + esc(t[2]) + '</small>', fn: () => convertBlocks(ids, t[0]) })))); break;
+    case 'turn': openMenu(b, (ids.length > 1 ? [{ head: 'Combine into one box' }].concat(['prob', 'sol', 'proof', 'thm', 'lem', 'claim', 'def', 'ex', 'rmk'].map(k => ({ html: '⧉ One ' + esc(KINDS[k].label) + '<small>merge the ' + ids.length + ' blocks</small>', fn: () => combineBlocks(ids, k) }))).concat([{ sep: 1 }, { head: 'Turn each into' }]) : []).concat(TYPES.filter(t => !['image', 'ink', 'divider'].includes(t[0])).map(t => ({ html: esc(t[1]) + '<small>' + esc(t[2]) + '</small>', fn: () => convertBlocks(ids, t[0]) }))).concat(ids.some(canBeComment) ? [{ sep: 1 }, { html: '💬 Comment' + (ids.length > 1 ? 's' : '') + '<small>in the margin, in ' + (ids.length > 1 ? 'their' : 'its') + ' colour</small>', fn: () => blocksToComments(ids) }] : [])); break;
     case 'mark': openMarkMenu(b, ids); break;
     case 'up': moveBlocks(ids, -1); break; case 'down': moveBlocks(ids, 1); break;
     case 'dup': duplicateBlocks(ids); break;
@@ -7436,12 +7529,14 @@ function cmtCard(b, c) {
       (er === rk ? '<textarea data-repedit="1" rows="2">' + esc(cmtDrafts['r:' + c.id + ':' + rk] != null ? cmtDrafts['r:' + c.id + ':' + rk] : (r.text || '')) + '</textarea><div class="cbtns"><button class="btn" data-c="rcancel" data-rk="' + rk + '">Cancel</button><button class="btn go" data-c="rsave" data-rk="' + rk + '">Save</button></div>'
         : '<div class="rb">' + (r.pending ? (r.text ? streamHtml(r.text) : '<span class="ph">Thinking…</span>') : repErr(r) ? (r.err && r.text ? textHtml(r.text) : '') + '<div class="rerr">' + esc(repErr(r)) + (b.pdf ? '' : ' <button class="lnk" data-c="retry" data-rk="' + rk + '">Retry</button>') + '</div>' : textHtml(r.text)) + '</div>') + '</div>'; }).join('');
   const tick = '<label class="tocl" title="Claude replies in this thread"><input type="checkbox" data-ctoc' + tc + '><span>✦ Send to Claude</span></label>';
-  return '<div class="cmt' + (c.who === 'claude' ? ' ai-c' : '') + (c.resolved ? ' resolved' : '') + (editing ? ' active' : '') + '" data-cb="' + b.id + '" data-cid="' + c.id + '">' +
+  const fb = c.from && !b.pdf ? c.from : null;
+  return '<div class="cmt' + (c.who === 'claude' ? ' ai-c' : '') + (fb ? ' fromblk' : '') + (c.resolved ? ' resolved' : '') + (editing ? ' active' : '') + '" data-cb="' + b.id + '" data-cid="' + c.id + '"' + (fb ? ' style="--fk:' + fromColor(fb) + '"' : '') + '>' +
+    (fb ? '<div class="cfrom" title="This comment was a ' + esc(fromName(fb)) + ' block — ↩ Block puts it back"><i></i><b>' + esc(fromName(fb, true)) + '</b><span>· was a block</span></div>' : '') +
     (c.quote ? '<div class="cq">' + inlineHtml(c.quote) + '</div>' : c.region ? '<div class="cq">▭ ' + esc(b.ink && b.ink.src ? 'area on ' + b.ink.src : 'area of the drawing') + '</div>' : '') +
     (editing ? '<textarea data-ctext="1" rows="2" placeholder="Comment… ($math$ works · mention the book or #book and Claude reads it)">' + esc(cmtDrafts['e:' + c.id] != null ? cmtDrafts['e:' + c.id] : (c.text || '')) + '</textarea><div class="ced">' + tick + '<div class="cbtns"><button class="btn" data-c="cancel">Cancel</button><button class="btn go" data-c="save">' + ((b.pdf ? !c.text : freshCmts.has(c.id)) ? 'Comment' : 'Save') + '</button></div></div>' + (reps ? '<div class="cthr">' + reps + '</div>' : '')
       : '<div class="cthr">' + (c.who === 'claude' ? '<div class="who cw">✦ Claude</div>' : '') + (c.text ? '<div class="cb">' + textHtml(c.text) + '</div>' : '') + reps + '</div>' +
         '<div class="creply' + (cmtDrafts[c.id] ? ' has' : '') + '"><textarea data-creply="1" rows="1" placeholder="Reply…">' + esc(cmtDrafts[c.id] || '') + '</textarea><div class="cr2">' + tick + '<span class="grow"></span><button class="btn go" data-c="reply" title="Reply (Enter)">Reply</button></div></div>' +
-        '<div class="cr"><span class="cdate" title="' + esc(fmtDate(c.created)) + '">' + esc(fmtShort(c.created)) + '</span><span class="grow"></span>' + ((c.hl || []).length ? '<button class="lnk muted" data-c="keephl" title="Keep highlights: keep only the parts you highlighted in this thread and remove the rest">✂ Keep</button>' : '') + '<button class="lnk muted" data-c="edit" title="Edit">Edit</button>' + (b.pdf ? '' : '<button class="lnk muted" data-c="del" title="Delete this comment and its replies">Delete</button>') + '<button class="lnk muted" data-c="resolve" title="' + (c.resolved ? 'Reopen' : 'Resolve') + '">' + (c.resolved ? 'Reopen' : 'Resolve') + '</button></div>') + '</div>';
+        '<div class="cr"><span class="cdate" title="' + esc(fmtDate(c.created)) + '">' + esc(fmtShort(c.created)) + '</span><span class="grow"></span>' + ((c.hl || []).length ? '<button class="lnk muted" data-c="keephl" title="Keep highlights: keep only the parts you highlighted in this thread and remove the rest">✂ Keep</button>' : '') + (fb ? '<button class="lnk muted" data-c="toblock" title="Put it back in the notes as a ' + esc(fromName(fb)) + ' block">↩ Block</button>' : '') + '<button class="lnk muted" data-c="edit" title="Edit">Edit</button>' + (b.pdf ? '' : '<button class="lnk muted" data-c="del" title="Delete this comment and its replies">Delete</button>') + '<button class="lnk muted" data-c="resolve" title="' + (c.resolved ? 'Reopen' : 'Resolve') + '">' + (c.resolved ? 'Reopen' : 'Resolve') + '</button></div>') + '</div>';
 }
 // perf: a card's HTML (Markdown + KaTeX) is rebuilt only when what it shows changes; threads being edited / answered are always drawn fresh
 const CMC = new Map();
@@ -7611,6 +7706,7 @@ document.addEventListener('click', e => {
   const c = (b.comments || []).find(x => x.id === card.dataset.cid); if (!c) return;
   const k = act.dataset.c;
   if (k === 'keephl') { keepHighlights(b, c); return; }
+  if (k === 'toblock') { commentToBlock(b, c); return; }
   if (k === 'edit') { state.editingCmt = c.id; state.editingRep = null; }
   if (k === 'redit' || k === 'rsave' || k === 'rcancel' || k === 'rdel') {
     const rk = act.dataset.rk; const r = repOf(c, rk); if (!r) return;
@@ -8886,9 +8982,10 @@ function openBlockMenu(id, anchor) {
   const b = state.blocks.get(id); const ids = state.sel.has(id) && state.sel.size > 1 ? selIds() : [id];
   const items = [{ head: ids.length > 1 ? ids.length + ' blocks' : ((state.nums[id] || {}).label || 'Block') }];
   items.push({ html: '✎ Edit', fn: () => startEdit(id) });
-  items.push({ html: 'Turn into…', fn: () => openMenu(anchor, TYPES.filter(t => !['image', 'divider'].includes(t[0])).map(t => ({ html: esc(t[1]) + '<small>' + esc(t[2]) + '</small>', fn: () => convertBlocks(ids, t[0]) }))) });
+  items.push({ html: 'Turn into…', fn: () => openMenu(anchor, TYPES.filter(t => !['image', 'divider'].includes(t[0])).map(t => ({ html: esc(t[1]) + '<small>' + esc(t[2]) + '</small>', fn: () => convertBlocks(ids, t[0]) })).concat(ids.some(canBeComment) ? [{ sep: 1 }, { html: '💬 Comment<small>in the margin, in its colour</small>', fn: () => blocksToComments(ids) }] : [])) });
   items.push({ html: '⚑ Mark…<small>' + (isMac ? '⌘' : 'Ctrl') + '⇧K</small>', fn: () => openMarkMenu(anchor, ids) });
   items.push({ html: '💬 Comment', fn: () => addComment(id, '', '', 'me') });
+  if (ids.some(canBeComment)) items.push({ html: '💬 Turn into a comment<small>keeps its colour</small>', fn: () => blocksToComments(ids) });
   items.push({ html: '📷 Add whiteboard photo → aside', fn: () => photoAside({ ids, quote: '' }) });
   items.push(b.aside ? { html: '⤵ Merge into main notes', fn: () => mergeAside(ids) } : { html: '◌ Make it an aside<small>review addition</small>', fn: () => makeAside(ids) });
   items.push({ html: '@ Copy a reference to this', fn: () => copyText('@[' + id + ']', 'Reference copied — paste it in another block') });
