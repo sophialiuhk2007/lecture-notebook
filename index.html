@@ -7460,9 +7460,37 @@ function olHere() {
 function sideReadRows(g, q) {
   const rs = SideReads.get(g).filter(r => r.kind !== 'link' && (!q || (r.title || '').toLowerCase().includes(q))); if (!rs.length) return '';
   const cur = Panel.reader && Panel.reader.r && Panel.reader.r.id;
-  return rs.map(r => '<div class="docrow rdrow"' + (r.id === cur ? ' aria-current="true"' : '') + '><button class="docitem" data-sread="' + esc(r.id) + '" data-scourse="' + esc(g) + '" title="Open “' + esc(r.title) + '” in the reader"><b><span class="pdftag">PDF</span>' + esc(r.title || 'Reading') + '</b><span>' + (r.pages ? r.pages + ' p.' : '') + '</span></button></div>').join('');
+  return rs.map(r => '<div class="docrow rdrow"' + (r.id === cur ? ' aria-current="true"' : '') + '><button class="docitem" data-sread="' + esc(r.id) + '" data-scourse="' + esc(g) + '" title="Open “' + esc(r.title) + '” in the reader"><b><span class="pdftag">PDF</span>' + esc(r.title || 'Reading') + '</b><span>' + (r.pages ? r.pages + ' p.' : '') + '</span></button><button class="more" data-srm="' + esc(r.id) + '" data-scourse="' + esc(g) + '" aria-label="Reading options" title="Rename or remove this reading">⋯</button></div>').join('');
 }
-$('sideBody').addEventListener('click', e => { const t = e.target.closest && e.target.closest('[data-sread]');
+async function changeSideReadings(g, change) {
+  const c = g === 'No course' ? '' : g, key = Panel.slug(c); let old = null, rs = null;
+  try {
+    if (Store.mode === 'db') { const d = await Store.db.doc('courses/' + key).get(); old = d.exists ? plainData(d) : null; rs = (old && old.readings) || []; }
+    else rs = JSON.parse(lsGet('nb.read.' + key) || '[]');
+  } catch (e) { toast('Couldn’t change the readings just now (' + ((e && e.code) || 'offline') + '). Try again.'); return false; }
+  const live = Panel._loaded === key && Panel._readsOk; if (live) rs = Panel.readings; // the panel's copy is the newest
+  const next = change(rs.slice()); if (!next) return false;
+  if (live) Panel.readings = next; SideReads.set(key, next);
+  if (Store.mode === 'db') Store.write('course:' + key, () => Store.db.doc('courses/' + key).set(Object.assign({}, old || {}, { name: (old && old.name) || c, readings: next, updated: now() })));
+  else { lsSet('nb.read.' + key, JSON.stringify(next)); setSave('ok'); }
+  if (live) Panel.render();
+  return true;
+}
+function sideReadingMenu(btn) {
+  const g = btn.dataset.scourse, id = btn.dataset.srm, r = SideReads.get(g).find(x => x.id === id); if (!r) return;
+  const title = r.title || 'Reading', row = btn.closest('.docrow'), item = row && row.querySelector('.docitem');
+  const isOpen = () => Panel.reader && Panel.reader.r && Panel.reader.r.id === id;
+  openMenu(btn, [
+    { html: '◫ Open beside my notes', fn: () => Panel.openReading(g, id, true) },
+    { html: 'Rename', fn: () => item && inlineInput(item, title, v => { changeSideReadings(g, rs => rs.map(x => x.id === id ? Object.assign({}, x, { title: v }) : x)); if (isOpen()) Panel.reader.r.title = v; }) },
+    { sep: 1 },
+    { html: '<span style="color:var(--k-warn)">Remove from this course</span><small>its comments and marks go with it</small>', fn: () => toast('Remove “' + title + '” from ' + (g === 'No course' ? 'your readings' : g) + '?', 'Remove', async () => {
+      if (isOpen()) Panel.closeReader();
+      if (await changeSideReadings(g, rs => rs.filter(x => x.id !== id))) toast('Removed “' + title + '”'); }) }
+  ]);
+}
+$('sideBody').addEventListener('click', e => { const sm = e.target.closest && e.target.closest('[data-srm]'); if (sm) { e.preventDefault(); e.stopImmediatePropagation(); sideReadingMenu(sm); return; }
+  const t = e.target.closest && e.target.closest('[data-sread]');
   if (!t) { const o = e.target.closest && e.target.closest('[data-open]'); if (o && Panel.page && !(e.metaKey || e.ctrlKey || e.shiftKey)) Panel.closeReader(); return; } // a note: back from the reading to it
   e.preventDefault(); e.stopImmediatePropagation(); Panel.openReading(t.dataset.scourse, t.dataset.sread); }, true);
 const DTF = {}; const dtf = (k, o) => DTF[k] || (DTF[k] = new Intl.DateTimeFormat(undefined, o)); // perf: one formatter each, not one per call
