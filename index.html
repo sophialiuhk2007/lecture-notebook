@@ -371,6 +371,9 @@ body.withpanel.tzfix:not(.pz) .sheet,body.tzfix .body.withpanel .sheet{grid-temp
 .docrow .docitem{flex:1;min-width:0;background:transparent!important}
 .docrow[draggable="true"]{cursor:grab}
 .newrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+/* stays at the top of the notes list while the courses and notes scroll under it */
+.sidebody>.newrow{position:sticky;top:-8px;z-index:4;margin:-8px -8px 8px;padding:8px;background:var(--panel);border-bottom:1px solid transparent;transition:border-color .12s}
+.sidebody.scrolled>.newrow{border-bottom-color:var(--line-2)}
 .newrow .btn{flex:1 1 auto;white-space:nowrap;padding-left:6px;padding-right:6px;font-size:12.5px}
 .trash .docrow{opacity:.75}
 .inlinein{width:100%;box-sizing:border-box;border:1px solid var(--accent);border-radius:6px;padding:5px 8px;font-size:13px;background:var(--paper)}
@@ -647,6 +650,10 @@ body.inkdoc #blocks{height:var(--pvh,70vh);overflow:auto;overscroll-behavior:con
 body.inkdoc .blk-page{width:calc(var(--pz,1) * 100%);margin:0 auto 18px}
 body.inkdoc .cmts{overflow:hidden;overflow:clip;overflow-clip-margin:10px}
 .inkdocbar .fsonly{display:none}body.inkfull .inkdocbar .fsonly{display:contents}
+/* the browser's real full screen: the system shows its own bar when the pointer / pen nears the top edge (macOS menu bar,
+   "exit full screen", iPad's ✕) and it takes the clicks meant for the tools — keep the tools below that strip */
+body.inkfull.fsapi .sheet{padding-top:max(44px,calc(env(safe-area-inset-top,0px) + 30px))}
+.inkdocbar .inkbar,.inkdocbar .inkmore{touch-action:manipulation}
 body.inkfull .body{grid-template-columns:minmax(0,1fr)!important}body.inkfull .side,body.inkfull .rpanel{display:none!important}
 body.inkfull header.bar,body.inkfull .tzoom,body.inkfull .showcmts,body.inkfull .ofab{display:none!important}body.inkfull .dtitle{display:none}
 body.inkfull .sheet{padding:8px 12px 16px;gap:0 16px;grid-template-columns:minmax(0,1fr) 250px!important}body.inkfull .cmts{display:block!important}body.inkfull.nocmts .sheet{grid-template-columns:minmax(0,1fr)!important}body.inkfull.nocmts .cmts{display:none!important}.inkdocbar [data-pa="cmts"][aria-pressed="true"]{color:var(--note);background:var(--note-soft)}body.inkfull .paper{padding:8px 12px 40px;border-radius:6px}body.inkfull .dmeta{display:none}body.inkfull .dtitle{font-size:18px;margin-bottom:6px}
@@ -11789,6 +11796,7 @@ function placeInkBar() {
 let pibT; window.addEventListener('resize', () => { clearTimeout(pibT); pibT = setTimeout(placeInkBar, 120); });
 document.addEventListener('pointerdown', e => { const mm = document.querySelector('#inkdocbar .inkmore'); if (mm && !mm.hidden && !e.target.closest('.imwrap')) mm.hidden = true; }, true);
 $('inkdocbar').addEventListener('mousedown', e => { if (!e.target.closest('select,input')) e.preventDefault(); });
+$('sideBody').addEventListener('scroll', () => { const sb = $('sideBody'); sb.classList.toggle('scrolled', sb.scrollTop > 2); }, { passive: true });
 $('inkdocbar').addEventListener('click', e => {
   const pa = e.target.closest('[data-pa]');
   if (pa && pa.dataset.pa === 'more') { const mm = $('inkdocbar').querySelector('.inkmore'); mm.hidden = !mm.hidden; if (!mm.hidden) { const r = pa.getBoundingClientRect(); const mw = Math.min(mm.offsetWidth || 264, window.innerWidth - 16); mm.style.right = 'auto'; mm.style.maxWidth = (window.innerWidth - 16) + 'px'; mm.style.left = Math.max(8, Math.min(window.innerWidth - mw - 8, r.right - mw)) + 'px'; mm.style.top = (r.bottom + 6) + 'px'; mm.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 14) + 'px'; mm.style.overflowY = 'auto'; } return; }
@@ -12125,7 +12133,7 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keydown', e => { if (e.key !== 'Escape' || !isInkDoc()) return; const mm = document.querySelector('#inkdocbar .inkmore:not([hidden])'); if (!mm && !document.querySelector('.menu,.pop.shpgrid')) return;
   if (mm) mm.hidden = true; closePops(); e.preventDefault(); e.stopPropagation(); }, true);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && PZ.full && isInkDoc() && !document.querySelector('.modal') && !(Ink.active && Ink.active.sel && Ink.active.sel.size) && !e.target.closest('input,textarea,.dlabel-wrap')) PZ.setFull(false); });
-const pzFsChange = () => { if (PZ.fsEl()) PZ.fsApi = true; else if (PZ.fsApi) { PZ.fsApi = false; if (PZ.full) PZ.setFull(false); } };
+const pzFsChange = () => { const on = !!PZ.fsEl(); document.body.classList.toggle('fsapi', on); if (on) PZ.fsApi = true; else if (PZ.fsApi) { PZ.fsApi = false; if (PZ.full) PZ.setFull(false); } if (PZ.full) requestAnimationFrame(() => { PZ.layout(); if (typeof layoutCmts === 'function') layoutCmts(); }); };
 document.addEventListener('fullscreenchange', pzFsChange); document.addEventListener('webkitfullscreenchange', pzFsChange);
 let pzRz; window.addEventListener('resize', () => { if (!isInkDoc()) return; clearTimeout(pzRz); pzRz = setTimeout(() => { PZ.layout(); }, 120); });
 if (typeof ResizeObserver !== 'undefined') { let w0 = 0, raf = 0; new ResizeObserver(() => { const bl = $('blocks'); if (!isInkDoc() || Math.abs(bl.clientWidth - w0) < 2) { w0 = bl.clientWidth; return; } w0 = bl.clientWidth;
