@@ -12,20 +12,25 @@ A notebook for math and statistics lectures that runs in the browser: nothing to
 - **PDF readings.** Add a course's PDFs, read them next to your notes or as a page, highlight, draw and comment on them.
 - **Comments and marks** in the margin, find & replace, outline. Any block can also be turned into a comment (right-click it → 💬 Turn into a comment): the card keeps the colour of the block type it was, and **↩ Block** puts it back.
 - **Export** to PDF or LaTeX (Overleaf-ready).
-- **Claude and Google Drive (optional)**, connected in **⚙ Settings** (top right). See below.
+- **AI (Claude or OpenAI) and Google Drive (optional)**, connected in **⚙ Settings** (top right). See below.
 
-## ⚙ Settings: connecting Claude and Google Drive
+## ⚙ Settings: connecting an AI and Google Drive
 
 Each person who uses the notebook connects **their own** accounts. Everything is stored only in that person's browser.
 
-### Claude
+### AI: Claude or OpenAI
 
-Ask Claude, explanations, replies in comments, and turning handwriting or PDFs into typed notes all call Anthropic's API straight from your browser, using **your own API key**:
+Asking about your notes, explanations, replies in comments, and turning handwriting or PDFs into typed notes call an AI straight from your browser, using **your own API key**. Choose the provider in **⚙ Settings → AI**:
 
-1. Create a key at <https://console.anthropic.com/settings/keys> (usage is billed to your Anthropic API account).
-2. In the notebook: **⚙ Settings → Claude**, paste the key, pick a model, **Connect Claude**.
+| | Claude (Anthropic) | OpenAI |
+|---|---|---|
+| Get a key | <https://console.anthropic.com/settings/keys> | <https://platform.openai.com/api-keys> |
+| Key looks like | `sk-ant-…` | `sk-…` / `sk-proj-…` |
+| Sent only to | `api.anthropic.com` | `api.openai.com` |
 
-The key is kept only in your browser and is sent only to `api.anthropic.com`. A claude.ai Pro/Max subscription can't be used by other websites. The API is billed separately.
+Paste the key, pick a model from the list (it shows the models your key can use), and press **Connect**. Each provider keeps its own key, so you can switch back and forth. Usage is billed to your account with that provider. A claude.ai or ChatGPT subscription can't be used by other websites: the APIs are billed separately.
+
+The buttons in the notebook still say “Claude” (✦ Claude, Ask); with OpenAI chosen they use your OpenAI model.
 
 ### Google Drive backup
 
@@ -48,6 +53,22 @@ Google sign-in needs an OAuth client ID that belongs to the website. Create it o
    ```
 
 Until then, people can still paste their own client ID under **⚙ Settings → Google Drive → Advanced**.
+
+Google can take from 5 minutes to a few hours to apply changes to these settings.
+
+#### If sign-in fails
+
+When the Google window closes without connecting, Google usually showed an “Access blocked” page first. The code at the bottom of that page says what to fix:
+
+| Code | Fix |
+|---|---|
+| `origin_mismatch` | The client's **Authorized JavaScript origins** must contain exactly `https://sophialiuhk2007.github.io`: no `/lecture-notebook`, no trailing `/`. It goes under JavaScript origins, not redirect URIs. |
+| `access_denied` (app is being tested) | Add the account you're signing in with under **Audience → Test users**, or publish the app. |
+| `admin_policy_enforced` / “Your institution's admin…” | A school or work Google account whose admin blocks apps it hasn't approved. Use a personal Gmail account instead (add it as a test user). |
+| `invalid_client` / `unauthorized_client` | The client ID is mistyped, deleted, or not of type *Web application*. |
+| Google Drive API has not been used… (after connecting) | Enable the **Google Drive API** in the same project. |
+
+Pop-up blockers and some in-app browsers also stop the sign-in window. Use a regular browser window (Chrome, Safari, Edge or Firefox) with pop-ups allowed for the site.
 
 ## Where your notes are kept
 

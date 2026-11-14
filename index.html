@@ -1073,7 +1073,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
    On an ordinary website this script stands in for them:
      • notes are kept on this device in the browser's database (IndexedDB) and stay in sync between open tabs;
      • pictures and PDFs are stored there too;
-     • Claude features use the visitor's own Anthropic API key (kept only in this browser, sent only to api.anthropic.com);
+     • AI features use the visitor's own API key for Claude (Anthropic) or OpenAI (kept only in this browser, sent only to that provider);
      • Google Drive backup uses the visitor's own Google sign-in (access only to the files this app creates);
      • ⚙ Settings connects both; "Back up notebook" / "Restore from backup" move everything as one file. */
 (function () {
@@ -1143,54 +1143,82 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   const b64 = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
   const fromB64 = (s) => { const bin = atob(s); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a; };
 
-  // ---------------------------------------------------------------- Claude, with the visitor's own API key
-  const KEY = 'nb.web.anthropicKey', MODEL = 'nb.web.model';
-  const DEFAULT_MODEL = 'claude-opus-5-5';
-  const getKey = () => ls.get(KEY);
-  const API = 'https://api.anthropic.com/v1/';
+  // ---------------------------------------------------------------- AI: Claude (Anthropic) or OpenAI, with the visitor's own API key
+  // Each provider keeps its own key and model in this browser; the key is sent only to that provider's API.
+  const PROV = 'nb.web.provider';
+  const P = {
+    anthropic: { name: 'Claude', co: 'Anthropic', key: 'nb.web.anthropicKey', model: 'nb.web.model', def: 'claude-opus-5-5', ph: 'sk-ant-…',
+      keyUrl: 'https://console.anthropic.com/settings/keys', keySite: 'console.anthropic.com → API keys', sub: 'A claude.ai Pro/Max subscription' },
+    openai: { name: 'OpenAI', co: 'OpenAI', key: 'nb.web.openaiKey', model: 'nb.web.oaModel', def: '', ph: 'sk-…',
+      keyUrl: 'https://platform.openai.com/api-keys', keySite: 'platform.openai.com → API keys', sub: 'A ChatGPT Plus/Pro subscription' },
+  };
+  const provider = () => ls.get(PROV) === 'openai' ? 'openai' : 'anthropic';
+  const getKey = (pv) => ls.get(P[pv || provider()].key);
+  const chosenModel = (pv) => ls.get(P[pv || provider()].model) || P[pv || provider()].def;
+  const API = 'https://api.anthropic.com/v1/', OA = 'https://api.openai.com/v1/';
   const hdrs = (key, beta) => Object.assign({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' }, beta ? { 'anthropic-beta': beta } : {});
-  async function listModels(key) { const r = await fetch(API + 'models?limit=100', { headers: hdrs(key) }); if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? 'bad_key' : 'upstream_error', message: await r.text().catch(() => '') }; const j = await r.json(); return (j.data || []).map(m => ({ id: m.id, name: m.display_name || m.id })); }
-  const pickDefault = (ms) => (ms.find(m => m.id === DEFAULT_MODEL) || ms.find(m => /opus/i.test(m.id)) || ms.find(m => /sonnet/i.test(m.id)) || ms[0] || {}).id || DEFAULT_MODEL;
+  const oaHdrs = (key) => ({ Authorization: 'Bearer ' + key, 'content-type': 'application/json' });
+  // models that answer chat (not speech, images, embeddings, search…); dated snapshots left out to keep the list short
+  const OA_CHAT = (id) => /^(gpt-|o\d|chatgpt-)/.test(id) && !/(audio|realtime|tts|transcribe|search|image|embedding|instruct|codex|moderation|computer-use|-\d{4}-\d{2}-\d{2}$)/.test(id);
+  async function listModels(pv, key) {
+    if (pv === 'openai') {
+      let r; try { r = await fetch(OA + 'models', { headers: oaHdrs(key) }); } catch (e) { throw { code: 'network' }; }
+      if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? 'bad_key' : 'upstream_error', message: await r.text().catch(() => '') };
+      const j = await r.json(); return (j.data || []).filter(m => OA_CHAT(m.id)).sort((a, b) => (b.created || 0) - (a.created || 0)).map(m => ({ id: m.id, name: m.id }));
+    }
+    let r; try { r = await fetch(API + 'models?limit=100', { headers: hdrs(key) }); } catch (e) { throw { code: 'network' }; }
+    if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? 'bad_key' : 'upstream_error', message: await r.text().catch(() => '') };
+    const j = await r.json(); return (j.data || []).map(m => ({ id: m.id, name: m.display_name || m.id }));
+  }
+  const pickDefault = (pv, ms) => pv === 'openai'
+    ? ((ms.find(m => /^gpt-\d/.test(m.id) && !/mini|nano/.test(m.id)) || ms.find(m => /^gpt-\d/.test(m.id)) || ms[0] || {}).id || '')
+    : ((ms.find(m => m.id === P.anthropic.def) || ms.find(m => /opus/i.test(m.id)) || ms.find(m => /sonnet/i.test(m.id)) || ms[0] || {}).id || P.anthropic.def);
   const TIER_EFFORT = { quick: 'low', default: 'medium', complex: 'high' };
   const IMG_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
-  const noKey = () => ({ code: 'not_granted', webMsg: 'Connect Claude first: ⚙ Settings → Claude (your own Anthropic API key).' });
-  // one streamed request; returns { text, stop }
-  async function stream(key, body, beta, o) {
-    let r; try { r = await fetch(API + 'messages', { method: 'POST', headers: hdrs(key, beta), body: JSON.stringify(body), signal: o.signal }); }
-    catch (e) { if (e && e.name === 'AbortError') throw { code: 'aborted' }; throw { code: 'upstream_error', webMsg: 'Couldn’t reach Claude — check your connection.' }; }
-    if (!r.ok) { const t = await r.text().catch(() => ''); throw { status: r.status, body: t }; }
-    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', text = '', stop = '';
+  const noKey = () => ({ code: 'not_granted', webMsg: 'Connect an AI first: ⚙ Settings → AI (Claude or OpenAI, with your own API key).' });
+  const plainMsgs = (input) => (typeof input === 'string' ? [{ role: 'user', content: input }] : input).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.content || '') }));
+  // read a streamed (server-sent events) answer; onData gets each event's JSON
+  async function readSSE(r, onData) {
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
     for (;;) { const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); let i;
-      while ((i = buf.indexOf('\n\n')) >= 0) { const ev = buf.slice(0, i); buf = buf.slice(i + 2); const line = ev.split('\n').find(l => l.startsWith('data:')); if (!line) continue; let d; try { d = JSON.parse(line.slice(5)); } catch (e) { continue; }
-        if (d.type === 'content_block_delta' && d.delta && d.delta.type === 'text_delta') { text += d.delta.text; if (o.onText) { try { o.onText({ text, delta: d.delta.text }); } catch (e) {} } }
-        else if (d.type === 'message_delta' && d.delta && d.delta.stop_reason) stop = d.delta.stop_reason;
-        else if (d.type === 'error') throw { code: (d.error && d.error.type) === 'overloaded_error' ? 'rate_limited' : 'upstream_error', message: (d.error && d.error.message) || '' }; } }
+      while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1); if (!line.startsWith('data:')) continue; const s = line.slice(5).trim(); if (!s || s === '[DONE]') continue; let d; try { d = JSON.parse(s); } catch (e) { continue; } onData(d); } }
+  }
+  const post = async (url, headers, body, o, who) => {
+    let r; try { r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: o.signal }); }
+    catch (e) { if (e && e.name === 'AbortError') throw { code: 'aborted' }; throw { code: 'upstream_error', webMsg: 'Couldn’t reach ' + who + ' — check your connection.' }; }
+    if (!r.ok) { const t = await r.text().catch(() => ''); throw { status: r.status, body: t }; }
+    return r;
+  };
+  // ---- Claude (Messages API)
+  async function streamClaude(key, body, beta, o) {
+    const r = await post(API + 'messages', hdrs(key, beta), body, o, 'Claude'); let text = '', stop = '';
+    await readSSE(r, (d) => {
+      if (d.type === 'content_block_delta' && d.delta && d.delta.type === 'text_delta') { text += d.delta.text; if (o.onText) { try { o.onText({ text, delta: d.delta.text }); } catch (e) {} } }
+      else if (d.type === 'message_delta' && d.delta && d.delta.stop_reason) stop = d.delta.stop_reason;
+      else if (d.type === 'error') throw { code: (d.error && d.error.type) === 'overloaded_error' ? 'rate_limited' : 'upstream_error', message: (d.error && d.error.message) || '' };
+    });
     return { text, stop };
   }
-  async function sample(input, o) {
-    o = o || {};
-    const key = getKey(); if (!key) throw noKey();
-    const chosen = ls.get(MODEL) || DEFAULT_MODEL;
-    const msgs = (typeof input === 'string' ? [{ role: 'user', content: input }] : input).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: [{ type: 'text', text: String(m.content || '') }] }));
+  async function sampleClaude(key, input, o, effort) {
+    const chosen = chosenModel('anthropic');
+    const msgs = plainMsgs(input).map(m => ({ role: m.role, content: [{ type: 'text', text: m.text }] }));
     if (o.images && o.images.length) { const last = msgs.filter(m => m.role === 'user').pop(); for (const im of [...o.images].reverse()) { if (!(im instanceof Blob)) continue; last.content.unshift({ type: 'image', source: { type: 'base64', media_type: IMG_TYPES.includes(im.type) ? im.type : 'image/png', data: await b64(im) } }); } }
-    const effort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(o.effort) ? o.effort : (TIER_EFFORT[o.modelTier] || 'medium');
     // try: the requested model with effort + server-side fallback on refusals → the same without the extras → your chosen model
     const plans = [];
-    const models = [...new Set([o.model || chosen, chosen])];
-    for (const model of models) {
+    for (const model of [...new Set([/^claude-/.test(o.model || '') ? o.model : chosen, chosen])]) {
       plans.push({ body: { model, max_tokens: 32000, stream: true, messages: msgs, output_config: { effort }, fallbacks: 'default' }, beta: 'server-side-fallback-2026-07-01' });
       plans.push({ body: { model, max_tokens: 32000, stream: true, messages: msgs } });
     }
     let last = null;
     for (const p of plans) {
       try {
-        const r = await stream(key, p.body, p.beta, o);
+        const r = await streamClaude(key, p.body, p.beta, o);
         if (r.stop === 'refusal' && !r.text.trim()) throw { code: 'upstream_error', webMsg: 'Claude declined to answer this one.' };
         return { text: r.text, truncated: r.stop === 'max_tokens', modelApplied: p.body.model };
       } catch (e) {
         if (!e || e.status == null) throw e;
         last = e; const t = String(e.body || '');
-        if (e.status === 401 || e.status === 403) { ls.set(KEY, ''); throw { code: 'not_granted', webMsg: 'Your Anthropic API key was not accepted — reconnect Claude in ⚙ Settings.' }; }
+        if (e.status === 401 || e.status === 403) { ls.set(P.anthropic.key, ''); throw { code: 'not_granted', webMsg: 'Your Anthropic API key was not accepted — reconnect in ⚙ Settings → AI.' }; }
         if (e.status === 429 || e.status === 529) throw { code: 'rate_limited', message: t };
         if (e.status === 400 && /credit balance|billing/i.test(t)) throw { code: 'upstream_error', webMsg: 'Your Anthropic account is out of credit — add credit at console.anthropic.com.' };
         if (e.status === 400 || e.status === 404) continue; // a model or option this account can't use: try the next plan
@@ -1199,6 +1227,56 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     }
     throw { code: 'upstream_error', message: last && last.body };
   }
+  // ---- OpenAI (Chat Completions API)
+  async function streamOA(key, body, o) {
+    const r = await post(OA + 'chat/completions', oaHdrs(key), body, o, 'OpenAI'); let text = '', stop = '';
+    await readSSE(r, (d) => {
+      if (d.error) throw { code: 'upstream_error', message: d.error.message || '' };
+      const c = d.choices && d.choices[0]; if (!c) return;
+      const t = c.delta && c.delta.content; if (t) { text += t; if (o.onText) { try { o.onText({ text, delta: t }); } catch (e) {} } }
+      if (c.finish_reason) stop = c.finish_reason;
+    });
+    return { text, stop };
+  }
+  async function sampleOA(key, input, o, effort) {
+    let chosen = chosenModel('openai');
+    if (!chosen) { try { chosen = pickDefault('openai', await listModels('openai', key)); if (chosen) ls.set(P.openai.model, chosen); } catch (e) { if (e.code === 'bad_key') { ls.set(P.openai.key, ''); throw { code: 'not_granted', webMsg: 'Your OpenAI API key was not accepted — reconnect in ⚙ Settings → AI.' }; } throw { code: 'upstream_error', webMsg: 'Couldn’t reach OpenAI — check your connection.' }; } }
+    const msgs = plainMsgs(input).map(m => ({ role: m.role, content: m.text }));
+    if (o.images && o.images.length) { const last = msgs.filter(m => m.role === 'user').pop(); const parts = [{ type: 'text', text: last.content }]; for (const im of o.images) { if (!(im instanceof Blob)) continue; parts.push({ type: 'image_url', image_url: { url: 'data:' + (IMG_TYPES.includes(im.type) ? im.type : 'image/png') + ';base64,' + (await b64(im)) } }); } last.content = parts; }
+    const re = effort === 'xhigh' || effort === 'max' ? 'high' : effort;
+    // try: your model with reasoning effort (reasoning models) → without it (other chat models) → with a smaller length limit → no limit
+    const plans = [
+      { model: chosen, stream: true, messages: msgs, max_completion_tokens: 32000, reasoning_effort: re },
+      { model: chosen, stream: true, messages: msgs, max_completion_tokens: 32000 },
+      { model: chosen, stream: true, messages: msgs, max_completion_tokens: 16000 },
+      { model: chosen, stream: true, messages: msgs },
+    ];
+    let last = null;
+    for (const body of plans) {
+      try {
+        const r = await streamOA(key, body, o);
+        return { text: r.text, truncated: r.stop === 'length', modelApplied: chosen };
+      } catch (e) {
+        if (!e || e.status == null) throw e;
+        last = e; const t = String(e.body || '');
+        if (e.status === 401 || e.status === 403) { ls.set(P.openai.key, ''); throw { code: 'not_granted', webMsg: 'Your OpenAI API key was not accepted — reconnect in ⚙ Settings → AI.' }; }
+        if (e.status === 429 && /insufficient_quota|billing|quota/i.test(t)) throw { code: 'upstream_error', webMsg: 'Your OpenAI account is out of credit — add credit at platform.openai.com.' };
+        if (e.status === 429) throw { code: 'rate_limited', message: t };
+        if (e.status === 404 && /model/i.test(t)) { ls.set(P.openai.model, ''); throw { code: 'upstream_error', webMsg: 'That OpenAI model isn’t available to your key — pick another in ⚙ Settings → AI.' }; }
+        if (e.status === 400) continue; // an option this model doesn't take: try the next plan
+        throw { code: 'upstream_error', message: t };
+      }
+    }
+    throw { code: 'upstream_error', message: last && last.body };
+  }
+  async function sample(input, o) {
+    o = o || {};
+    const pv = provider(), key = getKey(pv); if (!key) throw noKey();
+    const effort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(o.effort) ? o.effort : (TIER_EFFORT[o.modelTier] || 'medium');
+    return pv === 'openai' ? sampleOA(key, input, o, effort) : sampleClaude(key, input, o, effort);
+  }
+  // the notebook's own "Model" pickers (e.g. handwriting → typed notes) list Claude models; with OpenAI they use your OpenAI model
+  W.aiModels = () => provider() === 'openai' ? [['', 'Your OpenAI model (' + (chosenModel('openai') || 'set in ⚙ Settings') + ')']] : null;
   sample.limits = async () => ({ maxInputBytes: 30000000, images: { maxPerCall: 20, maxBytes: 5 * 1024 * 1024, mediaTypes: IMG_TYPES }, modelTiers: ['quick', 'default', 'complex'] });
   sample.json = async (input, o) => { const r = await sample(input, o); const t = r.text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ''); try { return JSON.parse(t); } catch (e) { throw { code: 'invalid_json', text: r.text }; } };
 
@@ -1224,7 +1302,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
         callback: (r) => { if (!r || r.error || !r.access_token) return rej({ code: 'not_granted', webMsg: 'Google Drive access wasn’t granted' + (r && r.error && r.error !== 'access_denied' ? ' (' + r.error + ')' : '') + '.' });
           if (google.accounts.oauth2.hasGrantedAllScopes && !google.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)) return rej({ code: 'not_granted', webMsg: 'Tick “See, edit, create and delete only the specific Google Drive files you use with this app” to use Drive backup.' });
           tok = { t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 }; ls.set(GTOK, JSON.stringify(tok)); ls.set(GON, '1'); res(tok.t); },
-        error_callback: (e) => rej({ code: 'not_granted', webMsg: e && e.type === 'popup_failed_to_open' ? 'The Google sign-in window was blocked — allow pop-ups for this site and try again.' : 'The Google window closed before access was granted. If it said “Access blocked” or “Error 403: access_denied”, the Google Cloud app is in Testing: add your Google account under Google Auth Platform → Audience → Test users (or publish the app), then try again.' }),
+        error_callback: (e) => rej({ code: 'not_granted', webMsg: e && e.type === 'popup_failed_to_open' ? 'The Google sign-in window was blocked — allow pop-ups for this site and try again.' : 'The Google window closed before access was granted. If it showed “Access blocked”, the error code at the bottom of that page says what to fix (origin_mismatch, access_denied, admin_policy_enforced…) — see “Google Drive → If sign-in fails” in the README.' }),
       });
       tc.requestAccessToken({ prompt: ls.get(GON) ? '' : 'consent' });
     }));
@@ -1285,25 +1363,26 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     '.wdlg button{padding:7px 12px;border-radius:8px;border:1px solid var(--line,#c9ced6);background:var(--panel,#fff);color:inherit;cursor:pointer;font:13px var(--f-ui,system-ui)}.wdlg button:hover{background:var(--panel-2,#f4f6f8)}' +
     '.wdlg button.go{background:var(--accent,#2f5d8a);color:var(--accent-ink,#fff);border-color:var(--accent,#2f5d8a)}.wdlg button:disabled{opacity:.55;cursor:default}' +
     '.wdlg .msg{font-size:12.5px;min-height:1.2em;margin-top:4px;color:var(--muted,#667)}.wdlg .msg.err{color:var(--k-warn,#b3261e)}.wdlg .msg.ok{color:var(--k-ex,#2e7d32)}' +
-    '.wdlg small,.wdlg .hint{color:var(--muted,#667);font-size:12.5px;display:block}.wdlg a{color:var(--accent,#2f5d8a)}.wdlg details{margin-top:8px}.wdlg summary{cursor:pointer;color:var(--muted,#667);font-size:12.5px}';
+    '.wdlg .prov{display:flex;gap:4px 16px;flex-wrap:wrap;margin:8px 0 2px}.wdlg .prov .st{font-size:11px;padding:1px 6px}.wdlg small,.wdlg .hint{color:var(--muted,#667);font-size:12.5px;display:block}.wdlg a{color:var(--accent,#2f5d8a)}.wdlg details{margin-top:8px}.wdlg summary{cursor:pointer;color:var(--muted,#667);font-size:12.5px}';
   document.head.appendChild(css);
   const dialog = (html) => { const d = document.createElement('div'); d.className = 'wdlg'; d.innerHTML = '<div role="dialog" aria-modal="true">' + html + '</div>'; document.body.appendChild(d);
     const close = () => { d.remove(); document.removeEventListener('keydown', esc, true); }; const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
     document.addEventListener('keydown', esc, true); d.addEventListener('mousedown', e => { if (e.target === d) close(); }); d.close = close; return d; };
 
-  // ⚙ Settings: Claude and Google Drive in one place
+  // ⚙ Settings: AI (Claude or OpenAI) and Google Drive in one place
   W.settings = (focus) => {
-    const hasKey = !!getKey(), D = window.__nbDrive, gOn = !!ls.get(GON), cid = clientId();
+    const pv = provider(), PV = P[pv], hasKey = !!getKey(pv), D = window.__nbDrive, gOn = !!ls.get(GON), cid = clientId();
     if (cid) loadGis().catch(() => {}); // loaded before the Connect click, so the sign-in pop-up opens straight from it
     const d = dialog(
       '<div style="display:flex;align-items:center;gap:8px"><h3>⚙ Settings</h3><span style="flex:1"></span><button data-x="close" aria-label="Close">✕</button></div>' +
       '<small>Everything here is stored only in this browser, on this device.</small>' +
-      '<div class="sec" data-sec="claude"><h4>✦ Claude <span class="st' + (hasKey ? ' on' : '') + '" data-cst>' + (hasKey ? 'Connected' : 'Not connected') + '</span></h4>' +
-      '<p>Ask Claude, explanations, comment replies and handwriting → typed notes use <b>your own</b> Anthropic API key. It is sent only to Anthropic, and usage is billed to your Anthropic account.</p>' +
-      '<small>Create a key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com → API keys</a>. (A claude.ai Pro/Max subscription can’t be used by other websites — the API is billed separately.)</small>' +
-      '<input data-k="key" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false" value="' + (hasKey ? '••••••••••••' : '') + '" aria-label="Anthropic API key">' +
-      '<label style="font-size:12.5px;color:var(--muted,#667)">Model<select data-k="model" aria-label="Model"><option value="' + escH(ls.get(MODEL) || DEFAULT_MODEL) + '">' + escH(ls.get(MODEL) || DEFAULT_MODEL) + '</option></select></label>' +
-      '<div class="msg" data-k="cmsg"></div><div class="row">' + (hasKey ? '<button data-x="rmkey">Disconnect</button>' : '') + '<button class="go" data-x="savekey">' + (hasKey ? 'Save' : 'Connect Claude') + '</button></div></div>' +
+      '<div class="sec" data-sec="ai"><h4>✦ AI <span class="st' + (hasKey ? ' on' : '') + '" data-cst>' + (hasKey ? PV.name + ' connected' : 'Not connected') + '</span></h4>' +
+      '<p>Ask, explanations, comment replies and handwriting → typed notes use <b>your own</b> API key, from Claude or OpenAI. The key stays in this browser and is sent only to ' + PV.co + '; usage is billed to your ' + PV.co + ' account.</p>' +
+      '<div class="prov" role="radiogroup" aria-label="AI provider">' + ['anthropic', 'openai'].map(k => '<label class="ck"><input type="radio" name="nbprov" value="' + k + '"' + (k === pv ? ' checked' : '') + '> ' + (k === 'anthropic' ? 'Claude <span class="hint" style="display:inline">(Anthropic)</span>' : 'OpenAI <span class="hint" style="display:inline">(GPT models)</span>') + (getKey(k) ? ' <span class="st on">key saved</span>' : '') + '</label>').join('') + '</div>' +
+      '<small style="margin-top:6px">Create a key at <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">' + PV.keySite + '</a>. (' + PV.sub + ' can’t be used by other websites — the API is billed separately.)</small>' +
+      '<input data-k="key" type="password" placeholder="' + PV.ph + '" autocomplete="off" spellcheck="false" value="' + (hasKey ? '••••••••••••' : '') + '" aria-label="' + PV.co + ' API key">' +
+      '<label style="font-size:12.5px;color:var(--muted,#667)">Model<select data-k="model" aria-label="Model">' + (chosenModel(pv) ? '<option value="' + escH(chosenModel(pv)) + '">' + escH(chosenModel(pv)) + '</option>' : '<option value="">(connect to choose)</option>') + '</select></label>' +
+      '<div class="msg" data-k="cmsg"></div><div class="row">' + (hasKey ? '<button data-x="rmkey">Disconnect</button>' : '') + '<button class="go" data-x="savekey">' + (hasKey ? 'Save' : 'Connect ' + PV.name) + '</button></div></div>' +
       '<div class="sec" data-sec="drive"><h4>☁ Google Drive <span class="st' + (gOn ? ' on' : '') + '" data-gst>' + (gOn ? 'Connected' : 'Not connected') + '</span></h4>' +
       '<p>Back up your notes to a “Lecture Notebook backups” folder in <b>your</b> Google Drive, and load them on another device. The app can see only the files it creates there.</p>' +
       (cid ? '' : '<p class="msg err" style="margin:6px 0">Google Drive isn’t set up on this copy of the notebook yet: it needs a Google OAuth client ID (see the README, “Google Drive”). Paste one under “Advanced”.</p>') +
@@ -1314,20 +1393,22 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     const $q = (k) => d.querySelector('[data-k="' + k + '"]');
     const inp = $q('key'), sel = $q('model'), cmsg = $q('cmsg'), gmsg = $q('gmsg');
     const say = (el, t, cls) => { el.className = 'msg' + (cls ? ' ' + cls : ''); el.textContent = t || ''; };
-    const fillModels = (ms) => { const cur = ls.get(MODEL) || pickDefault(ms); sel.innerHTML = ms.map(m => '<option value="' + escH(m.id) + '">' + escH(m.name) + (m.id === DEFAULT_MODEL ? ' (recommended)' : '') + '</option>').join(''); sel.value = ms.some(m => m.id === cur) ? cur : pickDefault(ms); };
-    if (hasKey) listModels(getKey()).then(fillModels, () => {});
+    const fillModels = (ms) => { const cur = ls.get(PV.model) || pickDefault(pv, ms); sel.innerHTML = ms.map(m => '<option value="' + escH(m.id) + '">' + escH(m.name) + (m.id === pickDefault(pv, ms) ? ' (recommended)' : '') + '</option>').join(''); sel.value = ms.some(m => m.id === cur) ? cur : pickDefault(pv, ms); };
+    if (hasKey) listModels(pv, getKey(pv)).then(fillModels, () => {});
     inp.addEventListener('focus', () => { if (inp.value.startsWith('••')) inp.value = ''; });
     inp.addEventListener('blur', () => { if (!inp.value && hasKey) inp.value = '••••••••••••'; });
     d.addEventListener('click', async (e) => {
       const x = e.target.closest('[data-x]'); if (!x) return; const a = x.dataset.x;
       if (a === 'close') return d.close();
-      if (a === 'rmkey') { ls.set(KEY, ''); ls.set(MODEL, ''); d.close(); W.settings(); return; }
+      if (a === 'rmkey') { ls.set(PV.key, ''); ls.set(PV.model, ''); d.close(); W.settings(); return; }
       if (a === 'savekey') {
-        let k = inp.value.trim(); if (!k || k.startsWith('••')) k = getKey(); if (!k) { say(cmsg, 'Paste your API key first.', 'err'); inp.focus(); return; }
+        let k = inp.value.trim(); if (!k || k.startsWith('••')) k = getKey(pv); if (!k) { say(cmsg, 'Paste your ' + PV.co + ' API key first.', 'err'); inp.focus(); return; }
+        if (pv === 'openai' && /^sk-ant-/.test(k)) { say(cmsg, 'That looks like an Anthropic (Claude) key — choose Claude above, or paste an OpenAI key.', 'err'); return; }
+        if (pv === 'anthropic' && /^sk-(proj-|svcacct-)/.test(k)) { say(cmsg, 'That looks like an OpenAI key — choose OpenAI above, or paste an Anthropic key.', 'err'); return; }
         x.disabled = true; say(cmsg, 'Checking the key…');
-        try { const ms = await listModels(k); ls.set(KEY, k); if (!sel.options.length || !ms.some(m => m.id === sel.value)) fillModels(ms); ls.set(MODEL, sel.value || pickDefault(ms)); if (!hasKey) { fillModels(ms); ls.set(MODEL, sel.value); }
-          d.querySelector('[data-cst]').textContent = 'Connected'; d.querySelector('[data-cst]').classList.add('on'); inp.value = '••••••••••••'; say(cmsg, 'Connected — Claude will use ' + (sel.options[sel.selectedIndex] || {}).text + '.', 'ok'); }
-        catch (er) { say(cmsg, er.code === 'bad_key' ? 'That key was not accepted — check it was copied in full.' : 'Couldn’t reach Anthropic — check your connection.', 'err'); }
+        try { const ms = await listModels(pv, k); ls.set(PV.key, k); const keep = ms.some(m => m.id === sel.value) ? sel.value : ''; fillModels(ms); if (keep) sel.value = keep; ls.set(PV.model, sel.value || pickDefault(pv, ms));
+          d.querySelector('[data-cst]').textContent = PV.name + ' connected'; d.querySelector('[data-cst]').classList.add('on'); inp.value = '••••••••••••'; say(cmsg, 'Connected — using ' + (sel.options[sel.selectedIndex] || {}).text + '.', 'ok'); }
+        catch (er) { say(cmsg, er.code === 'bad_key' ? 'That key was not accepted — check it was copied in full.' : 'Couldn’t reach ' + PV.co + ' — check your connection.', 'err'); }
         x.disabled = false; return;
       }
       if (a === 'gin' || a === 'gnow' || a === 'gload') {
@@ -1344,7 +1425,8 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       if (a === 'restore') { d.close(); W.restore(); return; }
     });
     d.addEventListener('change', (e) => {
-      if (e.target === sel && getKey()) { ls.set(MODEL, sel.value); say(cmsg, 'Claude will use ' + sel.options[sel.selectedIndex].text + '.', 'ok'); }
+      if (e.target === sel && getKey(pv)) { ls.set(PV.model, sel.value); say(cmsg, 'Using ' + sel.options[sel.selectedIndex].text + '.', 'ok'); }
+      if (e.target.name === 'nbprov') { ls.set(PROV, e.target.value); d.close(); W.settings(); }
       if (e.target === $q('auto')) { const D2 = window.__nbDrive; if (D2) D2.setAuto(e.target.checked); }
     });
     setTimeout(() => { const f = focus === 'drive' ? d.querySelector('[data-x="gin"],[data-x="gnow"]') : (!hasKey ? inp : null); if (f) f.focus(); }, 30);
@@ -1373,11 +1455,11 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     f.click();
   };
   W.menu = () => [{ sep: 1 },
-    { html: '⚙ Settings<small>' + (getKey() ? 'Claude connected' : 'connect Claude') + ' · ' + (ls.get(GON) ? 'Drive connected' : 'connect Google Drive') + '</small>', fn: () => W.settings() },
+    { html: '⚙ Settings<small>' + (getKey() ? P[provider()].name + ' connected' : 'connect Claude or OpenAI') + ' · ' + (ls.get(GON) ? 'Drive connected' : 'connect Google Drive') + '</small>', fn: () => W.settings() },
     { html: '⤓ Back up whole notebook<small>one file with every note, drawing and picture</small>', fn: () => W.backup() },
     { html: '⤒ Restore from a backup file', fn: () => W.restore() },
     { html: 'About this web edition<small>notes stay in this browser on this device</small>', fn: () => W.about() }];
-  W.about = () => { const d = dialog('<h3>Lecture Notebook — web edition</h3><p>Your notes are saved in this browser, on this device. Nothing is uploaded unless you connect Google Drive or use Claude.</p><p>Clearing this site’s data deletes the notes here, so turn on Google Drive backup in ⚙ Settings, or use <b>Back up whole notebook</b> now and then.</p><p>Claude features use your own Anthropic API key; Google Drive backup uses your own Google account. Both are set up in ⚙ Settings.</p><div class="row"><button class="go" data-x="ok">OK</button></div>'); d.addEventListener('click', e => { if (e.target.closest('[data-x]')) d.close(); }); };
+  W.about = () => { const d = dialog('<h3>Lecture Notebook — web edition</h3><p>Your notes are saved in this browser, on this device. Nothing is uploaded unless you connect Google Drive or use AI (Claude or OpenAI).</p><p>Clearing this site’s data deletes the notes here, so turn on Google Drive backup in ⚙ Settings, or use <b>Back up whole notebook</b> now and then.</p><p>AI features use your own API key from Claude (Anthropic) or OpenAI; Google Drive backup uses your own Google account. Both are set up in ⚙ Settings.</p><div class="row"><button class="go" data-x="ok">OK</button></div>'); d.addEventListener('click', e => { if (e.target.closest('[data-x]')) d.close(); }); };
 
   // ---------------------------------------------------------------- first visit: two demo notes
   async function seed() {
@@ -1391,7 +1473,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       ['box:thm', 'The distribution of a random vector $X$ is determined by the distributions of all the linear combinations $t\'X$.', 'Cramér–Wold'],
       ['math', 'Var(t\'X) = t\' Sigma t >= 0'],
       ['p', 'Select some text and press 💬 to comment, or ✦ Claude to ask about it. Any block can also become a comment: right-click it (or its ⋯) → 💬 Turn into a comment.'],
-      ['p', 'Connect Claude (your own API key) and Google Drive backup under ⚙ Settings at the top right.'],
+      ['p', 'Connect Claude or OpenAI (your own API key) and Google Drive backup under ⚙ Settings at the top right.'],
       ['h2', 'Handwriting'],
       ['p', 'Open “Handwriting demo” in the sidebar to write with a stylus or mouse, or press ✎ at the top for scratch paper next to your notes.'],
     ];
@@ -13470,7 +13552,7 @@ function makeAside(ids) { change('make aside', ids, () => { for (const id of ids
 // ---------------------------------------------------------------- Claude helpers
 async function getSample() { try { return window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch (e) { return null; } }
 // ---- which Claude model does the heavy jobs (converting handwriting / PDFs into notes). user, Nov 12: "default to Opus 5.5 high"
-const AI_MODELS = [['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-opus-5', 'Opus 5'], ['', 'Automatic (best available)']];
+const AI_MODELS = (window.__web && window.__web.aiModels && window.__web.aiModels()) || [['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-opus-5', 'Opus 5'], ['', 'Automatic (best available)']];
 const AI_EFFORTS = [['high', 'High'], ['medium', 'Medium'], ['low', 'Low']];
 function aiModelPref() { return { model: lsGet('nb.aiModel') ?? 'claude-opus-5-5', effort: lsGet('nb.aiEffort') || 'high' }; }
 // options for a sample() call that should use the chosen model; falls back to the most capable tier if the model can't answer
