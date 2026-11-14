@@ -770,7 +770,8 @@ body.rsdrag,body.rsdrag *{cursor:ns-resize!important;user-select:none!important}
 body.nocmts .cmts{display:none!important}body.nocmts .cmtinline{display:none!important}body.nocmts .sheet{grid-template-columns:minmax(0,calc(760px * var(--tz,1)))!important}body.nocmts.tzfix:not(.pz) .sheet{grid-template-columns:calc(var(--pw) * var(--tz))!important}
 body.nocmts .cmta{text-decoration:none;background:none!important}body.nocmts .cmta .katex{border-bottom:0}
 .cmts .mh{display:flex;align-items:center}.cmts .mh .mhide{margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px;padding:0}
-.cmtpill{position:sticky;top:10px;height:0;z-index:25;display:flex;justify-content:flex-end;align-items:flex-start;pointer-events:none}.cmtpill.inrow{position:relative;top:0;height:auto}
+.cmtpill{position:sticky;top:10px;height:0;z-index:25;display:flex;justify-content:flex-end;align-items:flex-start;pointer-events:none}.cmtpill.inrow{height:auto}
+body.pdfpage .cmtpill{position:absolute;top:0;right:0;left:auto;height:auto;z-index:60}body.pdfpage .cmtpill .showcmts{margin:8px 12px 0 0}
 .showcmts{pointer-events:auto;flex:none;margin:10px 14px 0 0;display:inline-flex;align-items:center;gap:5px;font:12.5px var(--f-ui);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px 10px;box-shadow:var(--shadow);cursor:pointer}
 .showcmts:hover{color:var(--ink)}.rgrip{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:6;touch-action:none}
 .rgrip::after{content:"";position:absolute;left:4px;top:50%;width:2px;height:44px;margin-top:-22px;border-radius:1px;background:var(--line);opacity:0;transition:opacity .15s}
@@ -858,7 +859,7 @@ body.rpdrag,body.rpdrag *{cursor:ew-resize!important;user-select:none!important}
    its comments in the margin beside their marks, its tools in the top bar */
 .pgread{position:absolute;inset:0;container:pgr/inline-size}.pgread[hidden]{display:none}
 body.pdfpage #scroll{overflow:hidden}
-body.pdfpage #sheet,body.pdfpage #findbar,body.pdfpage #tzoom,body.pdfpage #showCmts,body.pdfpage #outlineFab{display:none!important}
+body.pdfpage #sheet,body.pdfpage #findbar,body.pdfpage #tzoom,body.pdfpage #outlineFab{display:none!important}
 body.pdfpage #fmt,body.pdfpage .bar .seg.wide,body.pdfpage #cmtTog,body.pdfpage #asideBtn,body.pdfpage #reviewBtn{display:none!important}
 .pgbar{display:none}body.pdfpage .pgbar:not([hidden]){display:flex;align-items:center;flex-wrap:nowrap;min-width:0;overflow:hidden;padding:0}
 .pgbar .et{height:30px;min-width:30px;padding:0 5px}.pgbar .ib{flex:none}.pgbar .vsep{flex:none}
@@ -7766,7 +7767,7 @@ $('cmtTog').addEventListener('click', () => setCmtsHidden(!document.body.classLi
 function setCmtsHidden(on) {
   document.body.classList.toggle('nocmts', !!on); lsSet('nb.hideCmts', on ? '1' : '');
   const n = ordered().reduce((a, b) => a + (b.comments || []).filter(c => !c.resolved).length, 0);
-  const sb = $('showCmts'); if (sb) { sb.querySelector('span').textContent = on ? 'Show comments' + (n ? ' (' + n + ')' : '') : 'Hide comments'; sb.title = on ? 'Show the comments and their underlines' : 'Hide the comments and their underlines'; sb.setAttribute('aria-pressed', on ? 'false' : 'true'); }
+  updCmtPill();
   const tg = $('cmtTog'); if (tg) { tg.setAttribute('aria-pressed', on ? 'true' : 'false'); tg.title = on ? 'Show comments' + (n ? ' (' + n + ')' : '') : 'Hide comments'; tg.setAttribute('aria-label', on ? 'Show comments' : 'Hide comments'); }
   document.querySelectorAll('#inkdocbar [data-pa="cmts"]').forEach(x => x.setAttribute('aria-pressed', String(!on)));
   setTimeout(() => { if (typeof TZ !== 'undefined') TZ.refit(); if (typeof PZ !== 'undefined' && PZ.full) { PZ.layout(); PZ.repaint(); } layoutCmts(); fitCmtPill(); }, 30);
@@ -7774,17 +7775,26 @@ function setCmtsHidden(on) {
 // “Show resolved (n)” in the Comments header
 function updResolvedTog() { const bt = $('resCmts'); if (!bt) return; let n = 0; for (const b of ordered()) for (const c of (b.comments || [])) if (c.resolved && !viewHidden(b)) n++;
   bt.hidden = !n && !state.showResolved; const t = state.showResolved ? 'Hide resolved' : 'Show resolved (' + n + ')'; if (bt.textContent !== t) bt.textContent = t; }
-$('showCmts').onclick = () => setCmtsHidden(!document.body.classList.contains('nocmts'));
+// the 💬 pill: Hide / Show comments for the note, or for the PDF reading open as a page
+function updCmtPill() {
+  const sb = $('showCmts'); if (!sb) return; const pdf = document.body.classList.contains('pdfpage') && typeof Panel !== 'undefined' && Panel.reader;
+  let shown, n = 0;
+  if (pdf) { shown = lsGet('nb.pcmts') !== '0'; try { n = Ann.cmtList().filter(b => b.kind !== 'new' && !b.resolved).length; } catch (e) {} }
+  else { shown = !document.body.classList.contains('nocmts'); n = ordered().reduce((a, b) => a + (b.comments || []).filter(c => !c.resolved).length, 0); }
+  const t = shown ? 'Hide comments' : 'Show comments' + (n ? ' (' + n + ')' : ''); const sp = sb.querySelector('span'); if (sp.textContent !== t) sp.textContent = t;
+  sb.title = (shown ? 'Hide' : 'Show') + (pdf ? ' this reading’s comments' : ' the comments and their underlines'); sb.setAttribute('aria-pressed', String(shown));
+}
+$('showCmts').onclick = () => { if (document.body.classList.contains('pdfpage') && Panel.reader) { Ann.toggleCmts(lsGet('nb.pcmts') === '0'); updCmtPill(); } else setCmtsHidden(!document.body.classList.contains('nocmts')); };
 if (lsGet('nb.hideCmts') === '1') { document.body.classList.add('nocmts'); const tg = $('cmtTog'); if (tg) { tg.title = 'Show comments'; tg.setAttribute('aria-pressed', 'true'); tg.setAttribute('aria-label', 'Show comments'); } }
-else { const sb = $('showCmts'); sb.querySelector('span').textContent = 'Hide comments'; sb.title = 'Hide the comments and their underlines'; sb.setAttribute('aria-pressed', 'true'); }
+setTimeout(updCmtPill, 0);
 function fitCmtPill() {
-  const row = $('cmtPill'), b = $('showCmts'); if (!row || !b) return; row.classList.remove('inrow');
+  const row = $('cmtPill'), b = $('showCmts'); if (!row || !b) return; row.classList.remove('inrow'); if (document.body.classList.contains('pdfpage')) return;
   const r = b.getBoundingClientRect(); if (!r.width) return;
   const hit = [...document.querySelectorAll('#sheet .paper, #cmts')].some(el => { if (!el.offsetParent) return false; const q = el.getBoundingClientRect(); return q.width && r.left < q.right + 6 && r.right > q.left - 6; });
   if (hit) row.classList.add('inrow');
 }
 { let raf = 0; const go = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; fitCmtPill(); }); };
-  window.addEventListener('resize', go); if (window.ResizeObserver) { const ro = new ResizeObserver(go); ro.observe($('scroll')); ro.observe($('sheet')); } setTimeout(go, 300); }
+  window.__fitPill = go; window.addEventListener('resize', go); if (window.ResizeObserver) { const ro = new ResizeObserver(go); ro.observe($('scroll')); ro.observe($('sheet')); } setTimeout(go, 300); }
 // re-underline the other blocks a cross-block comment covers
 function remarkSpan(c, host) { for (const x of (c && c.span) || []) { if (x.b === host) continue; const el = $('b-' + x.b), bb = state.blocks.get(x.b); if (el && bb) markAnchors(el, bb); } }
 function renderCmts() {
@@ -7821,7 +7831,7 @@ function fitCmtUI(root) {
   });
 }
 function layoutCmts() {
-  fitCmtUI(); paintCmtHl();
+  fitCmtUI(); paintCmtHl(); if (window.__fitPill) window.__fitPill();
   markLongCmts();
   const host = $('cmtList'); const base = host.getBoundingClientRect().top;
   const cards = [...host.querySelectorAll('.cmt')].filter(c => $('b-' + c.dataset.cb)); const want = [], hs = [];
@@ -14468,6 +14478,7 @@ const Ann = {
   renderCmts() {
     const host = Panel.rq('.reader .rcmts'); const list = this.cmtList(); const n = list.filter(b => b.kind !== 'new' && !b.resolved).length;
     const pcn = Panel.rq('.pcnt'); const btn = pcn && pcn.closest('[data-pcb="toggle"]'); if (btn) { pcn.textContent = n ? String(n) : ''; btn.setAttribute('aria-pressed', String(Panel.page ? lsGet('nb.pcmts') !== '0' : !!(host && !host.hidden))); }
+    updCmtPill();
     if (host && Panel.page) this.renderPg(host, list);
     else if (host) {
       const want = lsGet('nb.pcmts') !== '0' && (list.length > 0 || !!(this.data && this.data.box.some(b => b.resolved))); if (host.hidden === want) host.hidden = !want;
@@ -15225,7 +15236,7 @@ const Panel = {
   pgMode() {
     const on = !!(this.page && this.reader); const B = document.body; const was = B.classList.contains('pdfpage');
     if (on && !was) { if (state.editing) stopEdit(); clearSel(); this._nsTop = $('scroll').scrollTop; this._nsDoc = state.docId; } // (the note stays loaded underneath, untouched)
-    B.classList.toggle('pdfpage', on); $('pgread').hidden = !on; $('pgbar').hidden = !on;
+    B.classList.toggle('pdfpage', on); $('pgread').hidden = !on; $('pgbar').hidden = !on; updCmtPill(); setTimeout(fitCmtPill, 30);
     if (on) lsSet('nb.lastRead', JSON.stringify({ c: this.reader.course || '', r: this.reader.r.id }));
     else { $('pgread').innerHTML = ''; $('pgbar').innerHTML = ''; if (was) { lsSet('nb.lastRead', ''); if (this._nsDoc === state.docId) $('scroll').scrollTop = this._nsTop || 0; if (B.classList.contains('readfull')) Ann.full(false); setTimeout(layoutCmts, 30); } }
   },
