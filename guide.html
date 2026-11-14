@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lecture Notebook — User guide</title>
+<meta name="description" content="How to take math and statistics lecture notes with Lecture Notebook: typing math, blocks, handwriting, readings, comments, AI help, study tools, export and backups.">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap">
+<style>
+:root{--bg:#F6F7F9;--panel:#fff;--panel-2:#F1F3F6;--ink:#1B2430;--muted:#5C6773;--line:#DDE2E8;--accent:#2F5D8A;--accent-soft:#E7EEF6;--def:#2F5D8A;--thm:#7A3E9D;--pf:#55606B;--ex:#2E7D32;--warn:#B3261E;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;--f-head:"Source Serif 4",Georgia,serif;--f-mono:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181D;--panel:#1C2127;--panel-2:#232931;--ink:#E4E8EC;--muted:#9AA5B1;--line:#2E353E;--accent:#8DB4DA;--accent-soft:#22303F;--def:#8DB4DA;--thm:#C49BE0;--pf:#A9B3BD;--ex:#81C784;--warn:#F28B82}}
+:root[data-theme="dark"]{--bg:#14181D;--panel:#1C2127;--panel-2:#232931;--ink:#E4E8EC;--muted:#9AA5B1;--line:#2E353E;--accent:#8DB4DA;--accent-soft:#22303F;--def:#8DB4DA;--thm:#C49BE0;--pf:#A9B3BD;--ex:#81C784;--warn:#F28B82}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:16px}
+body{margin:0;background:var(--bg);color:var(--ink);font:15.5px/1.65 var(--f-ui);-webkit-text-size-adjust:100%}
+a{color:var(--accent)}
+code,kbd{font:13px var(--f-mono);background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:0 4px;white-space:nowrap}
+kbd{border-bottom-width:2px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px;display:grid;grid-template-columns:230px minmax(0,1fr);gap:40px}
+header.top{border-bottom:1px solid var(--line);background:var(--panel)}
+header.top .in{max-width:1120px;margin:0 auto;padding:14px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+header.top .brand{font:700 18px var(--f-head);color:var(--ink);text-decoration:none}
+header.top .grow{flex:1}
+.btn{display:inline-block;padding:8px 14px;border-radius:9px;background:var(--accent);color:var(--panel);font-weight:600;text-decoration:none;font-size:14px}
+:root .btn{color:#fff}@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btn{color:#14181D}}
+nav.toc{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;padding:28px 0 28px}
+nav.toc b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+nav.toc a{display:block;padding:3px 8px;border-radius:6px;color:var(--ink);text-decoration:none;font-size:14px}
+nav.toc a:hover{background:var(--panel-2)}
+main{padding:28px 0 80px;min-width:0}
+h1{font:700 34px/1.2 var(--f-head);margin:0 0 8px}
+.lede{font-size:17px;color:var(--muted);margin:0 0 24px;max-width:62ch}
+section{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 26px;margin:0 0 18px}
+h2{font:700 23px/1.3 var(--f-head);margin:0 0 10px}
+h3{font-size:16px;margin:18px 0 4px}
+p,li{max-width:70ch}
+ul,ol{padding-left:22px}
+li{margin:3px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:14px 0 4px}
+.card{border:1px solid var(--line);border-radius:11px;padding:12px 14px;background:var(--panel-2)}
+.card b{display:block;margin-bottom:2px}
+.card p{margin:0;font-size:14px;color:var(--muted)}
+table{border-collapse:collapse;width:100%;margin:8px 0;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+th{font-size:12.5px;color:var(--muted);font-weight:600}
+td:first-child{white-space:nowrap}
+.tbl{overflow-x:auto}
+.tip{border-left:3px solid var(--accent);background:var(--accent-soft);padding:8px 12px;border-radius:0 8px 8px 0;margin:12px 0;font-size:14.5px}
+.box{border-left:4px solid var(--c,var(--def));padding:6px 12px;margin:10px 0;background:var(--panel-2);border-radius:0 8px 8px 0;font-size:14.5px}
+.box b{color:var(--c,var(--def))}
+.steps{counter-reset:s;list-style:none;padding:0}
+.steps li{counter-increment:s;position:relative;padding-left:34px;margin:8px 0}
+.steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--panel);font:600 13px/24px var(--f-ui);text-align:center}
+details{border:1px solid var(--line);border-radius:9px;padding:8px 12px;margin:8px 0;background:var(--panel)}
+details summary{cursor:pointer;font-weight:600}
+footer{color:var(--muted);font-size:13px;text-align:center;padding:10px 16px 40px}
+@media (max-width:860px){.wrap{grid-template-columns:1fr;gap:0}nav.toc{position:static;max-height:none;padding:16px 0 0}nav.toc .list{display:flex;flex-wrap:wrap;gap:4px}nav.toc a{background:var(--panel);border:1px solid var(--line)}section{padding:18px 16px}h1{font-size:28px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="in"><a class="brand" href="./">Lecture Notebook</a><span style="color:var(--muted)">User guide</span><span class="grow"></span><a class="btn" href="./">Open the notebook →</a></div></header>
+<div class="wrap">
+<nav class="toc" aria-label="Contents"><b>Contents</b><div class="list">
+<a href="#start">Getting started</a>
+<a href="#math">Typing math</a>
+<a href="#blocks">Blocks</a>
+<a href="#move">Moving &amp; selecting</a>
+<a href="#refs">References &amp; marks</a>
+<a href="#comments">Comments</a>
+<a href="#ink">Handwriting</a>
+<a href="#readings">Readings (PDFs)</a>
+<a href="#ai">AI help</a>
+<a href="#study">Study &amp; review</a>
+<a href="#export">Export</a>
+<a href="#backup">Backups &amp; devices</a>
+<a href="#privacy">Privacy</a>
+<a href="#keys">Shortcuts</a>
+<a href="#faq">FAQ</a>
+</div></nav>
+<main>
+<h1>How to make the most of Lecture Notebook</h1>
+<p class="lede">A notebook for math and statistics lectures: type formulas quickly, keep definitions and theorems tidy, write by hand, read the course PDFs beside your notes, and study from it all later. It runs in your browser with no account.</p>
+
+<section id="start">
+<h2>Getting started</h2>
+<ol class="steps">
+<li><b>Open the notebook.</b> The first time, a welcome card offers a one-minute tour. You can replay it any time from <b>Export → ✦ Take the tour</b> or the <b>?</b> help panel.</li>
+<li><b>Make a course and a note.</b> In the left sidebar, <b>Course</b> creates a class (e.g. “Stats 101”), <b>+ Lecture</b> starts typed notes titled with today’s date, and <b>Handwritten</b> starts pages for a stylus.</li>
+<li><b>Type.</b> Click anywhere in the note and write. Everything saves in your browser as you go; the pill in the top bar says when it’s saved.</li>
+<li><b>Optional extras.</b> <b>⚙ Settings</b> (top right) connects an AI for the ✦ tools and Google Drive to back up and use your notes on other devices. You can skip both.</li>
+</ol>
+<div class="cards">
+<div class="card"><b>On iPad</b><p>Share → <b>Add to Home Screen</b> opens it full screen like an app. Apple Pencil works in Safari.</p></div>
+<div class="card"><b>Demo notes</b><p>Your first visit includes two demo notes. Play with them, then delete them from the sidebar when you’re done.</p></div>
+<div class="card"><b>Help in the app</b><p>Press <kbd>?</kbd> (or <kbd>⌘/</kbd>) for the full list of shortcuts and block prefixes.</p></div>
+</div>
+</section>
+
+<section id="math">
+<h2>Typing math</h2>
+<p>Formulas are typed in <b>Typst</b>, a math syntax that is shorter than LaTeX. Type <code>mk</code> and a space (or Tab) to start a formula, <code>dm</code> for a displayed one, or put it between <code>$ … $</code>. The finished math floats above while you type; press <kbd>Esc</kbd>, <kbd>Enter</kbd> or arrow out to turn it back into math. Click a formula to edit it again.</p>
+<div class="tbl"><table>
+<tr><th>Type</th><th>You get</th></tr>
+<tr><td><code>sum_(i=1)^n x_i</code></td><td>a sum from i = 1 to n of xᵢ</td></tr>
+<tr><td><code>(a+b)/2</code></td><td>a fraction</td></tr>
+<tr><td><code>bar(X)_n stretch(->)^P mu</code></td><td>X̄ₙ converges in probability to μ</td></tr>
+<tr><td><code>x in RR</code>, <code>sqrt(n)</code></td><td>x ∈ ℝ, √n</td></tr>
+<tr><td><code>cases(1 &amp; x >= 0, 0 &amp; x &lt; 0)</code></td><td>a piecewise function</td></tr>
+<tr><td><code>mat(a, b; c, d)</code></td><td>a 2×2 matrix (<kbd>⌘↵</kbd> adds a row, <kbd>⌘⇧↵</kbd> a column)</td></tr>
+<tr><td><code>"iid"</code></td><td>words inside a formula</td></tr>
+</table></div>
+<h3>Quick shortcuts inside a formula</h3>
+<p><code>xsr</code> → x², <code>cb</code> → ³, <code>invs</code> → ⁻¹, <code>sq</code> → √( ), <code>x1</code> → x₁. Backspace right after a shortcut undoes it. Letters next to each other are one name, so write <code>a b</code> for a·b (<code>xbar</code> and <code>thetahat</code> still work).</p>
+<h3>Math in ordinary sentences</h3>
+<p>Outside a formula your words stay words, but a few phrases become symbols: <i>expected value of X</i> → E[X], <i>variance of X</i> → Var(X), <i>sum from i=1 to n</i> → Σ, <i>limit as n goes to infinity</i> → lim, <code>X ~ N</code> → ∼, <code>-&gt; &lt;= &gt;= !=</code> → → ≤ ≥ ≠, Greek names → letters. <code>x_i^2</code> makes real sub- and superscripts. Select words and type <code>$</code> to turn them into math.</p>
+<div class="tip">Know LaTeX already? <code>$\int_0^1 f(x)\,dx$</code> works too. The <b>∑</b> button (<kbd>⌘;</kbd>) lists every symbol and stats shortcut.</div>
+</section>
+
+<section id="blocks">
+<h2>Blocks: definitions, theorems, equations…</h2>
+<p>A note is a list of blocks. Plain paragraphs (with lists and inline math) form one text block; headings, boxes, numbered equations, pictures, tables and drawings are their own blocks. Start a line with a prefix to make one:</p>
+<div class="box" style="--c:var(--def)"><b>def:</b> A random vector X is Multivariate Normal if t′X is Normal for every t.</div>
+<div class="box" style="--c:var(--thm)"><b>thm:</b> The distribution of X is determined by the distributions of all t′X.</div>
+<div class="box" style="--c:var(--pf)"><b>pf:</b> “of Theorem 3” in the title links the proof to its theorem.</div>
+<div class="tbl"><table>
+<tr><th>Start with</th><th>Makes</th></tr>
+<tr><td><code>def:</code> <code>thm:</code> <code>prop:</code> <code>lem:</code> <code>cor:</code></td><td>Definition, Theorem, Proposition, Lemma, Corollary boxes</td></tr>
+<tr><td><code>pf:</code></td><td>Proof</td></tr>
+<tr><td><code>ex:</code> <code>rmk:</code> <code>intu:</code> <code>motiv:</code> <code>warn:</code> <code>exercise:</code></td><td>Example, Remark, Intuition, Motivation, Watch out, Exercise</td></tr>
+<tr><td><code>fix:</code> / <code>ask:</code></td><td>A correction / a question for your teacher</td></tr>
+<tr><td><code>#</code> <code>##</code> <code>###</code></td><td>Headings (they build the Outline tab)</td></tr>
+<tr><td><code>$$</code></td><td>Numbered equation</td></tr>
+<tr><td><code>|</code></td><td>Table</td></tr>
+<tr><td><code>draw:</code></td><td>Drawing with pen, shapes, arrows and text boxes</td></tr>
+<tr><td><code>```python</code></td><td>Code</td></tr>
+<tr><td><code>---</code></td><td>Divider</td></tr>
+<tr><td><code>/</code></td><td>Menu of every block type (same as <b>＋ Insert</b>)</td></tr>
+</table></div>
+<p>Inside text: <code>*bold*</code>, <code>_italic_</code>, <code>__underline__</code>, <code>==highlight==</code>, <code>`code`</code>, <code>- item</code> and <code>1. item</code> for lists, <code>[]</code> for a check-off list. Paste or drop a picture to add it.</p>
+</section>
+
+<section id="move">
+<h2>Moving, selecting and copying blocks</h2>
+<ul>
+<li>Each block has a <b>⠿ handle</b> on its left when you point at it. <b>Drag</b> it to move the block; <b>click</b> it to select the block.</li>
+<li><b>Shift-click</b> selects a range, <kbd>⌘</kbd>-click adds one block, <kbd>⌘A</kbd> selects all.</li>
+<li>With blocks selected: <kbd>⌫</kbd> delete, <kbd>⌘C</kbd> copy, <kbd>⌘X</kbd> cut, <kbd>⌘V</kbd> paste, <kbd>⌘D</kbd> duplicate, <kbd>⌥↑</kbd>/<kbd>⌥↓</kbd> move.</li>
+<li>Copied blocks paste back as the same blocks, with their types, even in another note, another tab or after a reload.</li>
+<li><b>Right-click</b> a block (or its ⋯) for its menu: change type, turn into a comment, mark it, ask the AI about it.</li>
+</ul>
+</section>
+
+<section id="refs">
+<h2>References and marks</h2>
+<p>Write “by Theorem 3”, “Def 2”, “eq (1)” or “§2”. When you leave the block it becomes a live link that follows renumbering. Or type <code>@</code> and pick. Hover a link to see an arrow to what it points at.</p>
+<p><b>⚑ Mark</b> (<kbd>⌘⇧K</kbd>) tags a block as to-do, double-check, ask teacher, try it, important or possible error. The <b>Marks</b> tab in the sidebar collects them across your notes, so nothing gets forgotten before an exam.</p>
+</section>
+
+<section id="comments">
+<h2>Comments</h2>
+<ul>
+<li>Select text and press <b>💬</b> (<kbd>⌘⇧M</kbd>) to comment in the margin. Reply, resolve, or ask the AI from a comment.</li>
+<li>Right-click a block → <b>💬 Turn into a comment</b> moves a side thought into the margin. It keeps the colour of its block type; <b>↩ Block</b> puts it back.</li>
+<li>The speech-bubble button in the top bar hides or shows all comments. PDFs have their own comment sidebar.</li>
+</ul>
+</section>
+
+<section id="ink">
+<h2>Handwriting</h2>
+<ul>
+<li><b>Handwritten</b> in the sidebar makes a note of paper pages (lined, grid or plain) for a stylus or mouse: pen, highlighter, shapes, lasso, text and palm rejection. A new page appears as you reach the bottom.</li>
+<li>Point at a page number for <b>＋</b> (add a page after) and the bin (delete it; undo brings it back).</li>
+<li><b>⛶ Full screen</b> gives the pages the whole window; comments work there too.</li>
+<li><b>✎</b> in the top bar opens scratch paper beside typed notes. Insert it into the note when it’s worth keeping.</li>
+<li><b>✦ Convert to typed notes</b> (needs AI) makes a linked typed copy with math and boxes; your handwriting stays untouched.</li>
+<li><b>⤓ Save as PDF</b> exports the pages.</li>
+</ul>
+</section>
+
+<section id="readings">
+<h2>Readings (PDFs)</h2>
+<p><b>📖</b> keeps each course’s PDFs (slides, book chapters, problem sets) next to your notes. Readings belong to a course, so give the note a course first.</p>
+<ul>
+<li>Select text in a PDF to <b>quote it</b> into your notes or highlight it.</li>
+<li><b>✎ Pen</b> writes on the page; <b>▭ Box</b> draws a box around a formula or figure to comment on it or ask the AI about it.</li>
+<li><b>⛶ Full screen</b> fills the window with the reading and puts the chat beside it. <kbd>Esc</kbd> goes back.</li>
+<li>Your marks stay with the reading and show in every note of that course.</li>
+</ul>
+</section>
+
+<section id="ai">
+<h2>AI help (optional)</h2>
+<p>The ✦ tools explain a passage, give intuition, build interactive demos, check a proof, clean up rough notes (your raw copy stays in Version history), read handwriting and whiteboard photos, and turn PDFs into notes. <b>Ask</b> opens a chat that sees the current note, the block you’re on, your open reading page and the course’s readings.</p>
+<h3>Connecting an AI</h3>
+<p>Open <b>⚙ Settings → AI</b>, pick a provider, paste a key and press <b>Connect</b>. Each provider has a “How do I get a key?” guide right there.</p>
+<div class="tbl"><table>
+<tr><th>Provider</th><th>Where to get a key</th><th>Cost</th></tr>
+<tr><td><b>Claude</b></td><td><a href="https://console.anthropic.com/" target="_blank" rel="noopener">console.anthropic.com</a> → API keys (starts with <code>sk-ant-</code>)</td><td>Pay as you go, billed by Anthropic</td></tr>
+<tr><td><b>OpenAI</b></td><td><a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> → API keys (<code>sk-…</code>)</td><td>Pay as you go, billed by OpenAI</td></tr>
+<tr><td><b>Harvard OpenAI</b></td><td><a href="https://portal.apis.huit.harvard.edu/" target="_blank" rel="noopener">HUIT API Portal</a>: register an app with <i>OpenAI for Community Developers</i>, copy its <b>Key</b> (not the Secret)</td><td>Free for Harvard affiliates ($10/month allowance)</td></tr>
+</table></div>
+<div class="tip">A claude.ai or ChatGPT subscription can’t be used by other websites: their API is billed separately. The key is stored only in your browser and sent only to that provider.</div>
+<p><b>Model</b> lists what your key can use. <b>Effort</b> sets how hard it thinks: <i>Automatic</i> matches the task; higher is slower and uses more credit. With OpenAI or Harvard chosen, the buttons say “GPT” instead of “Claude”.</p>
+</section>
+
+<section id="study">
+<h2>Study and review</h2>
+<ul>
+<li><b>Study</b> hides definitions and theorems: click one or press <kbd>Space</kbd> to reveal it.</li>
+<li><b>Review</b> turns definitions, theorems and starred blocks into flashcards.</li>
+<li>The <b>All / Main / Results</b> switch shows everything, just the lecture (asides hidden), or a cheat sheet of headings, definitions, theorems and equations.</li>
+<li><b>◌ Aside</b> mode marks what you add while reviewing (extra steps, whiteboard photos) so it stays separate from the lecture, labelled with the date. <b>Merge</b> moves an aside into the notes.</li>
+<li><b>Side by side</b> reads another note in a right-hand panel; the <b>Outline</b> tab jumps between headings.</li>
+</ul>
+</section>
+
+<section id="export">
+<h2>Export</h2>
+<ul>
+<li><b>⤓ Download PDF</b>: sharp text and math, your choice of page size. <b>📄 PDF printout</b> gives pages you can draw on.</li>
+<li><b>LaTeX (.zip)</b>: <code>notes.tex</code> plus images, ready for Overleaf. <b>LaTeX for handing in</b> uses plain amsthm style with no colours, asides or comments, ideal for problem sets.</li>
+<li><b>⤒ LaTeX file / snippet</b> goes the other way: a <code>.tex</code> file (e.g. a problem set) becomes blocks.</li>
+</ul>
+</section>
+
+<section id="backup">
+<h2>Backups and using several devices</h2>
+<p>Notes live in this browser on this device. To keep them safe and use them elsewhere:</p>
+<h3>Google Drive (recommended)</h3>
+<p><b>⚙ Settings → Google Drive → Connect Google Drive</b> and sign in. Every note backs up to a <b>Lecture Notebook backups</b> folder in your Drive a few minutes after you stop typing. On another device, connect the same Google account and use <b>☁ → Load from Drive…</b>. Loaded notes stay linked: edits on either device reach the other. <b>Load as a copy</b> makes an unlinked copy instead. The app can see only the files it creates, not the rest of your Drive.</p>
+<p>Google sign-in lasts about an hour. If backups pause, click the ☁ Drive button → <b>Back up now</b>.</p>
+<h3>A backup file</h3>
+<p><b>Export → ⤓ Back up whole notebook</b> saves one <code>.json</code> file with every note, drawing, picture and PDF. <b>Export → ⤒ Restore from a backup file</b> adds them to any browser. This also moves notes from the claude.ai version of the notebook to the website.</p>
+<div class="tip" style="border-color:var(--warn)">Clearing this site’s data in your browser deletes the notes stored here. Keep Drive backup on, or save a backup file now and then.</div>
+</section>
+
+<section id="privacy">
+<h2>Privacy</h2>
+<ul>
+<li>There’s no account and no server of ours storing your notes. They stay in your browser.</li>
+<li>Google Drive backup goes to <b>your</b> Drive, with access only to the files this app makes.</li>
+<li>AI requests go from your browser straight to the provider you chose, with your key. Harvard requests pass through a small relay that adds the web headers Harvard’s gateway lacks; it stores nothing.</li>
+<li>Settings and keys are kept only in this browser.</li>
+</ul>
+</section>
+
+<section id="keys">
+<h2>Keyboard shortcuts</h2>
+<p>On Windows and Linux, use <kbd>Ctrl</kbd> where this says <kbd>⌘</kbd>.</p>
+<div class="tbl"><table>
+<tr><th>Keys</th><th>Does</th></tr>
+<tr><td><kbd>?</kbd> · <kbd>⌘/</kbd></td><td>Help and every shortcut</td></tr>
+<tr><td><kbd>⌘Z</kbd> / <kbd>⌘⇧Z</kbd></td><td>Undo / redo</td></tr>
+<tr><td><kbd>⌘F</kbd></td><td>Find &amp; replace (<kbd>⌘G</kbd> next)</td></tr>
+<tr><td><kbd>⌘↵</kbd></td><td>New block below</td></tr>
+<tr><td><kbd>/</kbd></td><td>Insert menu (on an empty line)</td></tr>
+<tr><td><kbd>⌘B</kbd> <kbd>⌘I</kbd> <kbd>⌘U</kbd></td><td>Bold, italic, underline</td></tr>
+<tr><td><kbd>⌘.</kbd> / <kbd>⌘,</kbd></td><td>Superscript / subscript on or off</td></tr>
+<tr><td><kbd>⌘⇧H</kbd></td><td>Highlight</td></tr>
+<tr><td><kbd>⌘⇧M</kbd></td><td>Comment</td></tr>
+<tr><td><kbd>⌘⇧K</kbd></td><td>Mark (to-do, ask, important…)</td></tr>
+<tr><td><kbd>⌘⇧E</kbd></td><td>Empty formula</td></tr>
+<tr><td><kbd>⌘;</kbd></td><td>Symbols &amp; stats shortcuts</td></tr>
+<tr><td><kbd>⌘A</kbd></td><td>Select all blocks (twice inside a block)</td></tr>
+<tr><td><kbd>⌥↑</kbd> / <kbd>⌥↓</kbd></td><td>Move selected blocks</td></tr>
+<tr><td><kbd>⌘D</kbd></td><td>Duplicate selected blocks</td></tr>
+<tr><td><kbd>Esc</kbd></td><td>Leave the block (it stays selected); <kbd>Enter</kbd> edits it again</td></tr>
+</table></div>
+</section>
+
+<section id="faq">
+<h2>FAQ</h2>
+<details><summary>Do I need an AI key?</summary><p>No. Writing, math, handwriting, readings, comments, study mode, flashcards, export and backups all work without one. Only the ✦ tools and Ask need it.</p></details>
+<details><summary>Where did my notes go?</summary><p>Notes are per browser. A different browser, a private window or another device starts empty. Use Google Drive (Load from Drive) or a backup file to bring them over.</p></details>
+<details><summary>Google says “Access blocked” or the sign-in window closes</summary><p>Allow pop-ups for the site and use a regular browser window (not an in-app browser). Some school or work Google accounts block apps their admin hasn’t approved; a personal Gmail account works.</p></details>
+<details><summary>My Harvard key isn’t accepted</summary><p>Paste the app’s <b>Key</b>, not the Secret, and check the HUIT portal shows the app’s OpenAI access as approved.</p></details>
+<details><summary>Can I use it offline?</summary><p>Opening the site needs a connection. Once it’s open, you can keep writing if the Wi-Fi drops (notes save in the browser); AI needs a connection, and Drive backups catch up when you’re back online.</p></details>
+<details><summary>Can I share a note?</summary><p>Export it as a PDF or LaTeX, or back it up to Drive and share that file from Drive.</p></details>
+</section>
+</main>
+</div>
+<footer>Lecture Notebook · <a href="./">Open the notebook</a> · <a href="https://github.com/sophialiuhk2007/lecture-notebook">Source on GitHub</a></footer>
+</body>
+</html>

@@ -1176,8 +1176,9 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   // Harvard's address (v1 was retired on 10/1/26); ⚙ Settings → AI → Harvard → Gateway address can point it elsewhere
   // (e.g. the Community Developer product's own address, or a relay that lets web pages call it)
   // the free "OpenAI for Community Developers" product ($10/month, FAS & HUIT); pay-as-you-go OpenAI Direct is …/ais-openai-direct/v2
-  const HUIT_DEFAULT = 'https://go.apis.huit.harvard.edu/ais-openai-direct-comdev/v2/';
   const normBase = (u) => { u = String(u || '').trim().replace(/\/+(chat\/completions|models)\/?$/, ''); return u ? u.replace(/\/*$/, '/') : ''; };
+  // this site's relay (config.js) if it has one — Harvard's gateway itself refuses calls from web pages
+  const HUIT_DEFAULT = normBase(CFG.harvardRelay) || 'https://go.apis.huit.harvard.edu/ais-openai-direct-comdev/v2/';
   function huitBase() { return normBase(ls.get('nb.web.huitBase')) || HUIT_DEFAULT; }
   const provider = () => { const v = ls.get(PROV); return P[v] ? v : 'anthropic'; };
   const getKey = (pv) => ls.get(P[pv || provider()].key);
@@ -1411,7 +1412,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     '.wdlg .msg{font-size:12px;color:var(--muted,#667)}.wdlg .msg:empty{display:none}.wdlg .msg.err{color:var(--k-warn,#b3261e)}.wdlg .msg.ok{color:var(--k-ex,#2e7d32)}' +
     '.wdlg .prov{display:flex;gap:4px;flex-wrap:wrap;margin:2px 0 4px}.wdlg .prov label{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line,#c9ced6);border-radius:99px;padding:3px 10px;font-size:12px;cursor:pointer;margin:0}.wdlg .prov input{position:absolute;opacity:0;width:1px;height:1px;margin:0;pointer-events:none}' +
     '.wdlg .prov label:has(input:checked){background:var(--accent,#2f5d8a);border-color:var(--accent,#2f5d8a);color:var(--accent-ink,#fff)}.wdlg .prov label:has(input:focus-visible){outline:2px solid var(--accent,#2f5d8a);outline-offset:2px}.wdlg .prov i{font-style:normal;font-size:10px;opacity:.8}' +
-    '.wdlg small,.wdlg .hint{color:var(--muted,#667);font-size:11.5px;display:block;line-height:1.4}.wdlg a{color:var(--accent,#2f5d8a)}.wdlg details.sub{margin-top:4px}.wdlg details.sub>summary{cursor:pointer;color:var(--muted,#667);font-size:11.5px}';
+    '.wdlg ol.steps{margin:4px 0 2px;padding-left:18px;font-size:12px;color:var(--muted,#667)}.wdlg ol.steps li{margin:2px 0}.wdlg code{font:11.5px var(--f-mono,monospace)}.wdlg small,.wdlg .hint{color:var(--muted,#667);font-size:11.5px;display:block;line-height:1.4}.wdlg a{color:var(--accent,#2f5d8a)}.wdlg details.sub{margin-top:4px}.wdlg details.sub>summary{cursor:pointer;color:var(--muted,#667);font-size:11.5px}';
   document.head.appendChild(css);
   const dialog = (html) => { const d = document.createElement('div'); d.className = 'wdlg'; d.innerHTML = '<div role="dialog" aria-modal="true">' + html + '</div>'; document.body.appendChild(d);
     const close = () => { d.remove(); document.removeEventListener('keydown', esc, true); }; const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
@@ -1424,20 +1425,26 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     // sections fold away; each opens on its own when it still needs setting up, and remembers how you left it
     let remembered = {}; try { remembered = JSON.parse(ls.get('nb.web.setOpen') || '{}'); } catch (e) {}
     const openSec = (k, need) => (focus === k || (k in remembered ? remembered[k] : need)) ? ' open' : '';
-    const help = pv === 'harvard' ? 'Paste the <b>Key</b> (not the Secret) from the <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">HUIT API Portal</a>. Uses your Harvard allowance.'
+    const help = pv === 'harvard' ? 'Paste the <b>Key</b> (not the Secret) from the <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">HUIT API Portal</a>. Uses your Harvard allowance' + (CFG.harvardRelay ? '; nothing else to set up.' : '.')
       : 'Key from <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">' + PV.keySite.split(' → ')[0] + '</a>, billed to your ' + PV.co + ' account (' + PV.sub.replace(/^A /, 'a ') + ' can’t be used here).';
+    const L = (u, t) => '<a href="' + u + '" target="_blank" rel="noopener">' + t + '</a>';
+    const howTo = pv === 'anthropic' ? ['Open ' + L('https://console.anthropic.com/', 'console.anthropic.com') + ' and sign in (or sign up).', '<b>Billing</b>: add a little credit — you pay only for what you use.', '<b>API keys → Create key</b>, copy it (it starts with <code>sk-ant-</code>) and paste it above.']
+      : pv === 'openai' ? ['Open ' + L('https://platform.openai.com/', 'platform.openai.com') + ' and sign in.', '<b>Settings → Billing</b>: add a little credit.', '<b>API keys → Create new secret key</b>, copy it (<code>sk-…</code>) and paste it above.']
+      : ['Open the ' + L('https://portal.apis.huit.harvard.edu/', 'HUIT API Portal') + ' and sign in with HarvardKey.', 'Register an app with <b>OpenAI for Community Developers</b> (free, $10 a month; FAS &amp; HUIT).', 'Open the app’s API keys and copy the <b>Key</b> (not the Secret); paste it above.'];
     const d = dialog(
-      '<div style="display:flex;align-items:center;gap:8px"><h3>⚙ Settings</h3><span class="hint" style="display:inline">stored only in this browser</span><span style="flex:1"></span><button class="x" data-x="close" aria-label="Close">✕</button></div>' +
+      '<div style="display:flex;align-items:center;gap:8px"><h3>⚙ Settings</h3><span class="hint" style="display:inline">stored only in this browser</span><span style="flex:1"></span><a class="hint" style="display:inline;font-size:12px" href="guide.html" target="_blank" rel="noopener">Guide ↗</a><button class="x" data-x="close" aria-label="Close">✕</button></div>' +
       '<details class="sec" data-sec="ai"' + openSec('ai', !hasKey) + '><summary><b>✦ AI</b><span class="st' + (hasKey ? ' on' : '') + '" data-cst>' + (hasKey ? PV.name + (chosenModel(pv) ? ' · ' + escH(chosenModel(pv)) : '') : 'Not connected') + '</span><span class="chev">▶</span></summary><div class="sb">' +
       '<div class="prov" role="radiogroup" aria-label="AI provider">' + ['anthropic', 'openai', 'harvard'].map(k => '<label><input type="radio" name="nbprov" value="' + k + '"' + (k === pv ? ' checked' : '') + '>' + (k === 'anthropic' ? 'Claude' : k === 'openai' ? 'OpenAI' : 'Harvard OpenAI') + (getKey(k) ? ' <i>✓</i>' : '') + '</label>').join('') + '</div>' +
       '<small>' + help + ' The key is sent only to ' + PV.co + '.</small>' +
       '<input data-k="key" type="password" placeholder="' + PV.ph + '" autocomplete="off" spellcheck="false" value="' + (hasKey ? '••••••••••••' : '') + '" aria-label="' + PV.co + ' API key">' +
+      (hasKey ? '' : '<details class="sub"><summary>How do I get a key?</summary><ol class="steps">' + howTo.map(x => '<li>' + x + '</li>').join('') + '</ol></details>') +
       '<div class="g2"><label>Model<select data-k="model" aria-label="Model">' + (chosenModel(pv) ? '<option value="' + escH(chosenModel(pv)) + '">' + escH(chosenModel(pv)) + '</option>' : '<option value="">(connect first)</option>') + '</select></label>' +
       '<label title="How hard the model thinks before answering: higher is slower and uses more of your credit">Effort<select data-k="effort" aria-label="Effort">' + (() => { const cur = ls.get(EFF) || 'auto', ch = effortChoices(pv), v = ch.some(c => c[0] === cur) ? cur : 'high'; return ch.map(([k, l]) => '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + l + '</option>').join(''); })() + '</select></label></div>' +
-      (pv === 'harvard' ? '<details class="sub"' + (ls.get('nb.web.huitBase') ? ' open' : '') + '><summary>Gateway address</summary><small>Harvard doesn’t accept calls from web pages: paste your relay’s address (README → “Harvard relay”). Empty = Community Developers.</small><input data-k="hbase" spellcheck="false" placeholder="' + HUIT_DEFAULT + '" value="' + escH(ls.get('nb.web.huitBase')) + '"></details>' : '') +
-      '<div class="row"><div class="msg" data-k="cmsg"></div>' + (hasKey ? '<button data-x="rmkey">Disconnect</button>' : '') + '<button class="go" data-x="savekey">' + (hasKey ? 'Save' : 'Connect') + '</button></div></div></details>' +
+      (pv === 'harvard' ? '<details class="sub"' + (ls.get('nb.web.huitBase') ? ' open' : '') + '><summary>Advanced: gateway address</summary><small>' + (CFG.harvardRelay ? 'This site already relays to Harvard’s Community Developers product. Change this only for another product (e.g. pay-as-you-go OpenAI Direct) or your own relay.' : 'Harvard doesn’t accept calls from web pages: paste your relay’s address (README → “Harvard relay”).') + '</small><input data-k="hbase" spellcheck="false" placeholder="' + HUIT_DEFAULT + '" value="' + escH(ls.get('nb.web.huitBase')) + '"></details>' : '') +
+      '<div class="row"><div class="msg" data-k="cmsg"></div>' + (hasKey ? '<button data-x="rmkey">Disconnect</button>' : '') + '<button class="go" data-x="savekey">' + (hasKey ? 'Save' : 'Connect') + '</button></div>' +
+      (hasKey ? '' : '<small style="margin-top:4px">Optional: everything except the ✦ tools works without an AI.</small>') + '</div></details>' +
       '<details class="sec" data-sec="drive"' + openSec('drive', !gOn) + '><summary><b>☁ Google Drive</b><span class="st' + (gOn ? ' on' : '') + '" data-gst>' + (gOn ? (D && D.cfg && D.cfg.auto ? 'Connected · auto backup' : 'Connected') : 'Not connected') + '</span><span class="chev">▶</span></summary><div class="sb">' +
-      '<small>Backs up to “Lecture Notebook backups” in your Drive and keeps loaded notes in sync. The app sees only the files it creates.</small>' +
+      '<small>' + (gOn ? 'Backs up to “Lecture Notebook backups” in your Drive and keeps loaded notes in sync.' : 'Sign in with Google once: your notes back up to a “Lecture Notebook backups” folder in <b>your</b> Drive, and you can load them on any device.') + ' The app sees only the files it creates.</small>' +
       (cid ? '' : '<small class="msg err">Needs a Google OAuth client ID: paste one under Advanced (README → “Google Drive”).</small>') +
       (gOn ? '<label class="ck"><input type="checkbox" data-k="auto"' + (D && D.cfg && D.cfg.auto ? ' checked' : '') + '> Back up automatically and keep loaded notes in sync</label>' : '') +
       '<div class="row"><div class="msg" data-k="gmsg"></div>' + (gOn ? '<button data-x="gout">Disconnect</button><button data-x="gload">Load from Drive…</button><button class="go" data-x="gnow">Back up now</button>' : '<button class="go" data-x="gin"' + (cid ? '' : ' disabled') + '>Connect Google Drive</button>') + '</div>' +
@@ -1548,6 +1555,8 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     f.click();
   };
   W.menu = () => [{ sep: 1 },
+    { html: '✦ Take the tour<small>a 1-minute walk through the notebook</small>', fn: () => W.tour() },
+    { html: '📘 User guide<small>every feature, opens in a new tab</small>', fn: () => window.open('guide.html', '_blank', 'noopener') },
     { html: '⚙ Settings<small>' + (getKey() ? P[provider()].name + ' connected' : 'connect Claude or OpenAI') + ' · ' + (ls.get(GON) ? 'Drive connected' : 'connect Google Drive') + '</small>', fn: () => W.settings() },
     { html: '⤓ Back up whole notebook<small>one file with every note, drawing and picture</small>', fn: () => W.backup() },
     { html: '⤒ Restore from a backup file', fn: () => W.restore() },
@@ -1567,7 +1576,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       ['box:thm', 'The distribution of a random vector $X$ is determined by the distributions of all the linear combinations $t\'X$.', 'Cramér–Wold'],
       ['math', 'Var(t\'X) = t\' Sigma t >= 0'],
       ['p', 'Select some text and press 💬 to comment, or ✦ Claude to ask about it. Any block can also become a comment: right-click it (or its ⋯) → 💬 Turn into a comment.'],
-      ['p', 'Connect Claude or OpenAI (your own API key) and Google Drive backup under ⚙ Settings at the top right.'],
+      ['p', 'Optional extras: AI help (your own Claude, OpenAI or Harvard key) and Google Drive backup, both under ⚙ Settings at the top right. For a walk-through: Export → ✦ Take the tour.'],
       ['h2', 'Handwriting'],
       ['p', 'Open “Handwriting demo” in the sidebar to write with a stylus or mouse, or press ✎ at the top for scratch paper next to your notes.'],
     ];
@@ -1575,6 +1584,83 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     await put2('docs/' + d2, { id: d2, title: 'Handwriting demo', course: 'Demo', created: t, updated: t, kind: 'ink', bg: 'lines' });
     await put2('docs/' + d2 + '/blocks/bink1', { id: 'bink1', type: 'page', text: '', pos: 1024, created: t, ink: { w: 850, h: 1100, bg: 'lines', strokes: [], shapes: [] } });
     try { localStorage.setItem('nb.last', d1); } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------- first visit: a welcome card, and a guided tour (also in Export → ✦ Take the tour)
+  const vis = (el) => { if (!el) return false; const r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; if (el.closest('[hidden]')) return false; const cs = getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none' && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight + 4000; };
+  const STEPS = [
+    { sel: ['#side .newrow', '#sideBtn'], t: 'Your notes', b: 'Every note lives in this list. <b>+ Lecture</b> starts typed notes, <b>Handwritten</b> gives you pages for a stylus or mouse, and <b>Course</b> groups notes (and readings) by class.', alt: 'Tap ☰ to show your notes list.' },
+    { sel: ['#scroll .blk'], t: 'Just type', b: 'A note is a list of blocks: click and type. Start a line with <code>def:</code>, <code>thm:</code>, <code>pf:</code> or <code>ex:</code> for a boxed definition, theorem, proof or example; <code>#</code> for a heading. Math: type <code>mk</code> and a space, or put it between <code>$ … $</code>.' },
+    { sel: ['#fmt [data-f="insert"]'], t: 'Insert anything', b: '<b>＋ Insert</b> (or type <code>/</code> on an empty line) adds equations, tables, pictures, theorem boxes, code, drawings and more.' },
+    { sel: ['#scroll [data-g="handle"]'], t: 'Move and select blocks', b: 'Each block has a <b>⠿</b> handle on its left: drag it to move the block, click to select it (Shift-click for a range), then copy, cut, duplicate or delete. Copied blocks paste back as the same blocks.' },
+    { sel: ['#fmt [data-f="comment"]'], t: 'Comments', b: 'Select some text and press <b>💬</b> to comment in the margin. Right-click a block → <b>Turn into a comment</b> to move a side thought out of the way.' },
+    { sel: ['#fmt [data-f="claude"]'], t: '✦ AI help', b: 'Select something and press ✦ to have it explained, turned into an interactive, cleaned up, or a proof checked. Needs an AI key in ⚙ Settings, which is optional.' },
+    { sel: ['#readBtn'], t: 'Readings', b: '📖 keeps the course’s PDFs next to your notes: highlight, comment and quote them into your notes.' },
+    { sel: ['#chatBtn'], t: 'Ask about your notes', b: '<b>Ask</b> opens a chat that knows the note you are reading.' },
+    { sel: ['#studyBtn', '#reviewBtn'], t: 'Study and review', b: '<b>Study</b> hides definitions and theorems so you can test yourself; <b>Review</b> turns them into flashcards.' },
+    { sel: ['#exportBtn'], t: 'Export and back up', b: 'Download a PDF or Overleaf-ready LaTeX, and <b>Back up whole notebook</b> to one file. Your notes are saved in this browser automatically.' },
+    { sel: ['#setBtn'], t: '⚙ Settings', b: 'Connect an AI (Claude, OpenAI or Harvard’s) and Google Drive backup here. Both are optional; the notebook works without them.' },
+    { sel: ['#helpBtn'], t: 'Help any time', b: '<b>?</b> lists every shortcut. The full user guide (and this tour) are in the Export menu.' },
+  ];
+  css.textContent += '.wtour{position:fixed;inset:0;z-index:2100;pointer-events:none}.wtour .dim{position:fixed;inset:0;background:rgba(15,20,28,.42);pointer-events:none}.wtour .ring{position:fixed;border-radius:9px;box-shadow:0 0 0 3px var(--accent,#2f5d8a);transition:all .2s ease;pointer-events:none}.wtour .ring.none{display:none}' +
+    '.wtour .card{position:fixed;pointer-events:auto;width:min(330px,calc(100vw - 24px));box-sizing:border-box;background:var(--panel,#fff);color:var(--ink,#1b2430);border:1px solid var(--line,#d9dee4);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.28);padding:12px 14px;font:13px/1.5 var(--f-ui,system-ui,sans-serif);transition:top .2s ease,left .2s ease}' +
+    '.wtour h4{margin:0 0 4px;font-size:14.5px}.wtour p{margin:0}.wtour code{font:12px var(--f-mono,monospace);background:var(--panel-2,#f4f6f8);padding:0 3px;border-radius:4px}.wtour .alt{display:block;margin-top:4px;color:var(--muted,#667);font-size:12px}' +
+    '.wtour .nav{display:flex;align-items:center;gap:6px;margin-top:10px}.wtour .nav .n{color:var(--muted,#667);font-size:11.5px;margin-right:auto}' +
+    '.wtour button{padding:5px 11px;border-radius:7px;border:1px solid var(--line,#c9ced6);background:var(--panel,#fff);color:inherit;cursor:pointer;font:12.5px var(--f-ui,system-ui)}.wtour button:hover{background:var(--panel-2,#f4f6f8)}' +
+    '.wtour button.go{background:var(--accent,#2f5d8a);color:var(--accent-ink,#fff);border-color:var(--accent,#2f5d8a)}.wtour button.skip{border:0;color:var(--muted,#667);padding:5px 6px}' +
+    '.wdlg .welcome ul{margin:8px 0 4px;padding-left:20px}.wdlg .welcome li{margin:4px 0}.wdlg .welcome .big{display:flex;flex-direction:column;gap:6px;margin-top:12px}.wdlg .welcome .big button{padding:8px 12px;font-size:13.5px;text-align:left}';
+  W.tour = (startAt) => {
+    document.querySelectorAll('.wtour').forEach(x => x.remove());
+    const o = document.createElement('div'); o.className = 'wtour'; o.innerHTML = '<div class="dim"></div><div class="ring"></div><div class="card" role="dialog" aria-modal="false" aria-live="polite"></div>'; document.body.appendChild(o);
+    const ring = o.querySelector('.ring'), dim = o.querySelector('.dim'), card = o.querySelector('.card');
+    const steps = STEPS.filter(s => s.sel.some(q => document.querySelector(q)) || document.querySelector('#barMore'));
+    let i = Math.max(0, Math.min(steps.length, +startAt || 0));
+    const target = (s) => { for (const q of s.sel) { const el = [...document.querySelectorAll(q)].find(vis); if (el) return { el }; } const m = document.getElementById('barMore'); return vis(m) ? { el: m, more: true } : { el: null }; };
+    const place = () => {
+      dim.style.clipPath = '';
+      if (i >= steps.length) { ring.className = 'ring none'; card.style.left = Math.max(12, (innerWidth - card.offsetWidth) / 2) + 'px'; card.style.top = Math.max(12, (innerHeight - card.offsetHeight) / 2) + 'px'; return; }
+      const tg = target(steps[i]); if (!tg.el) { ring.className = 'ring none'; card.style.left = Math.max(12, (innerWidth - card.offsetWidth) / 2) + 'px'; card.style.top = Math.max(12, (innerHeight - card.offsetHeight) / 2) + 'px'; return; }
+      const r = tg.el.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > innerHeight) { tg.el.scrollIntoView({ block: 'center' }); return requestAnimationFrame(place); }
+      const big = r.height > innerHeight * 0.5, pad = 5;
+      const hx = r.left - pad, hy = r.top - pad, hw = r.width + pad * 2, hh = (big ? Math.min(r.height, innerHeight * 0.5) : r.height) + pad * 2;
+      ring.className = 'ring'; Object.assign(ring.style, { left: hx + 'px', top: hy + 'px', width: hw + 'px', height: hh + 'px' });
+      dim.style.clipPath = 'polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ' + hx + 'px ' + hy + 'px, ' + (hx + hw) + 'px ' + hy + 'px, ' + (hx + hw) + 'px ' + (hy + hh) + 'px, ' + hx + 'px ' + (hy + hh) + 'px, ' + hx + 'px ' + hy + 'px)';
+      const cw = card.offsetWidth, ch = card.offsetHeight; let top = r.bottom + 12; if (top + ch > innerHeight - 8) top = r.top - ch - 12; if (top < 8) top = Math.min(innerHeight - ch - 8, Math.max(8, r.top + 12));
+      let left = r.left + r.width / 2 - cw / 2; if (r.width > 400) left = r.left + 24; card.style.left = Math.max(12, Math.min(innerWidth - cw - 12, left)) + 'px'; card.style.top = top + 'px';
+    };
+    const show = () => {
+      if (i >= steps.length) {
+        card.innerHTML = '<h4>You’re ready ✓</h4><p>Your notes save in this browser as you type. Want AI help or backups on other devices? Set them up whenever you like.</p><div class="nav"><span class="n"></span><button data-t="guide">User guide ↗</button><button data-t="set">⚙ Settings</button><button class="go" data-t="end">Start writing</button></div>';
+      } else {
+        const s = steps[i], tg = target(s);
+        const note = !tg.el ? '' : tg.more ? '<span class="alt">On a narrow window this is in the ⋯ menu.</span>' : (s.alt && tg.el.id === 'sideBtn') ? '<span class="alt">' + s.alt + '</span>' : '';
+        card.innerHTML = '<h4>' + s.t + '</h4><p>' + s.b + '</p>' + note + '<div class="nav"><span class="n">' + (i + 1) + ' of ' + steps.length + '</span><button class="skip" data-t="end">Skip</button>' + (i ? '<button data-t="back">Back</button>' : '') + '<button class="go" data-t="next">' + (i === steps.length - 1 ? 'Finish' : 'Next') + '</button></div>';
+      }
+      place(); const f = card.querySelector('.go'); if (f) f.focus({ preventScroll: true });
+    };
+    const end = () => { o.remove(); removeEventListener('resize', place); removeEventListener('scroll', place, true); document.removeEventListener('keydown', key, true); };
+    const key = (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); end(); } else if (e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); if (i < steps.length) { i++; show(); } } else if (e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); if (i > 0) { i--; show(); } } };
+    card.addEventListener('click', (e) => { const b = e.target.closest('[data-t]'); if (!b) return; const a = b.dataset.t;
+      if (a === 'next') { i++; show(); } else if (a === 'back') { i--; show(); } else if (a === 'end') end();
+      else if (a === 'set') { end(); W.settings(); } else if (a === 'guide') { window.open('guide.html', '_blank', 'noopener'); } });
+    addEventListener('resize', place); addEventListener('scroll', place, true); document.addEventListener('keydown', key, true);
+    ls.set('nb.web.welcomed', '1'); show();
+  };
+  W.welcome = () => {
+    ls.set('nb.web.welcomed', '1');
+    const d = dialog('<div class="welcome"><div style="display:flex;align-items:center;gap:8px"><h3>Welcome to Lecture Notebook 👋</h3><span style="flex:1"></span><button class="x" data-w="close" aria-label="Close">✕</button></div>' +
+      '<ul><li>Take lecture notes with real math, theorem boxes, handwriting and PDFs side by side.</li><li><b>No account needed:</b> notes save in this browser as you type.</li><li><b>Optional:</b> AI help with your own key, and Google Drive backup to use your notes on other devices.</li></ul>' +
+      '<div class="big"><button class="go" data-w="tour">✦ Show me around <span style="opacity:.8">(1 minute)</span></button><button data-w="set">⚙ Set up AI &amp; Google Drive</button><button data-w="close">Just start writing</button></div>' +
+      '<small style="margin-top:10px">Everything is explained in the <a href="guide.html" target="_blank" rel="noopener">user guide</a>. The tour is in Export → ✦ Take the tour any time.</small></div>');
+    d.addEventListener('click', (e) => { const b = e.target.closest('[data-w]'); if (!b) return; d.close(); if (b.dataset.w === 'tour') setTimeout(() => W.tour(), 60); else if (b.dataset.w === 'set') W.settings(); });
+    setTimeout(() => { const b = d.querySelector('.go'); if (b) b.focus(); }, 30);
+  };
+  // once the notebook is on screen (and only on a first visit)
+  if (!ls.get('nb.web.welcomed') && !/[?&]nowelcome\b/.test(location.search)) {
+    const t0 = Date.now(); const wait = () => { const ready = document.querySelector('#scroll .blk') && !/Loading/.test((document.getElementById('saveState') || {}).textContent || '');
+      if (ls.get('nb.web.welcomed')) return; if (ready || Date.now() - t0 > 8000) { if (document.body && !document.querySelector('.wdlg,.wtour')) W.welcome(); } else setTimeout(wait, 250); };
+    if (document.readyState === 'complete') setTimeout(wait, 400); else addEventListener('load', () => setTimeout(wait, 400));
   }
 
   // ---------------------------------------------------------------- what the notebook asks for
@@ -16977,7 +17063,7 @@ function renderHelp() {
   const ex = ['sum from i=1 to n of x_i', 'sum of x_j from j=1 to n', 'integral from 0 to infinity of e^-x dx', 'lim as n goes to infinity of a_n', 'x geq 0, y leq 1, a != b',
     'P(X less than or equal to t)', 'x_i, x^(n+1), x*, dga/dt', 'sqrt(n) (xbar - mu)/sigma', 'X ~ N(mu, sigma^2), X, Y iid Expo(lambda)', 'X_n ->^d Z, Y_n ->^P c', 'chi square_2, theta hat, sigma squared', 'E[X | Y], Var(X), Cov(X, Y)', 'A union B, x in A, A subset of B', '[[1, 2], [3, 4]]', 'X::{n x p} beta::{p x 1}'];
   const T = (rows) => '<table>' + rows.map(r => '<tr><td>' + esc(r[0]) + '</td><td>' + r[1] + '</td></tr>').join('') + '</table>';
-  $('help').innerHTML = '<div style="display:flex;align-items:center"><h2>How to take notes fast</h2><span class="grow"></span><button class="lnk muted" id="helpClose">Close</button></div>' +
+  $('help').innerHTML = '<div style="display:flex;align-items:center"><h2>How to take notes fast</h2><span class="grow"></span><button class="lnk" id="helpTour">✦ Take the tour</button><a class="lnk" href="guide.html" target="_blank" rel="noopener" style="margin:0 10px">User guide ↗</a><button class="lnk muted" id="helpClose">Close</button></div>' +
     '<h3>Editing</h3><p>Click any block and type right there — you always see the rendered version. Plain text — paragraphs with inline math, lists, $$ display math — is one block, so you can select and copy across paragraphs freely; <b>Enter</b> starts a new paragraph, ' + M + '↵ a new block, and headings, boxes, numbered equations, pictures and tables are their own blocks. <b>Formulas are typed in Typst</b>: type <b>mk</b> and a space (or Tab) to start one (<b>dm</b> for a displayed one), or put it between <b>$ … $</b> (<b>$ … $</b> with spaces inside = displayed). Shortcuts inside: <b>xsr</b> → x^2, <b>cb</b> → ^3, <b>invs</b> → ^(-1), <b>sq</b> → sqrt( ), <b>text</b> → "…", <b>x1</b> → x_1; <b>Backspace</b> right after one undoes it; <b>Tab</b> steps out of ( ) or "…", then out of the formula. Examples: <b>bar(X)_n stretch(->)^P mu</b>, <b>sum_(i=1)^n x_i</b>, <b>(a+b)/2</b>, <b>sqrt(n)</b>, <b>x in RR</b>, <b>"iid"</b> for words, <b>cases(1 &amp; x >= 0, 0 &amp; x &lt; 0)</b>, <b>mat(a, b; c, d)</b>. Letters next to each other are one name, so write <b>a b</b> for a·b; <b>xbar</b> and <b>thetahat</b> still work. <b>Click a formula</b> — or arrow / Backspace into it — and its Typst comes back (a <b>drag</b> that starts on a formula selects instead, so you can copy it with the words around it), with the finished math floating above as you edit (half-typed Typst keeps the last good math, faded; Typst that can’t be read shows in red until you fix it); <b>Esc</b>, <b>Enter</b> or moving out turns it back into math. Formulas written earlier open as Typst when that gives exactly the same formula, otherwise as they were written. Outside a formula your words stay words — nothing is guessed into math — but shortcuts turn them into plain symbols: <b>expected value of X</b> → E[X], <b>variance of X</b> → Var(X), <b>covariance of X and Y</b> → Cov(X, Y), <b>sum from i=1 to n</b> → Σ with i=1 below and n above, <b>integral from 0 to 1</b>, <b>limit as n goes to infinity</b> → lim with n→∞ below; <b>_</b> and <b>^</b> in a sentence make real subscripts and superscripts up to the space (<b>x_i^2</b>, <b>lim_(n->oo)</b>, <b>e^(-x)</b>); or, like Google Docs, <b>Ctrl/⌘ .</b> turns superscript on and off and <b>Ctrl/⌘ ,</b> subscript (also on selected words, or the x² / x₂ buttons); words selected while just reading delete with <b>Backspace</b>; <b>e(</b> → E[ (its <b>)</b> becomes ]), <b>p(</b> → P(, <b>exp(…)</b> → e to that power, <b>given</b> → | (not “given that”); and the symbols palette’s words: <b>x in A</b> → x ∈ A, <b>A union B</b>, <b>inter</b>, <b>notin</b>, <b>subseteq</b>, <b>RR</b> → ℝ, Greek names → letters, <b>xbar</b> → x̄, <b>theta hat</b> → θ̂, <b>partial f</b> → ∂f, <b>grad f</b> → ∇f, <b>x inverse</b>, <b>abs(x)</b>, <b>norm(f)</b>, <b>sqrt(n)</b>, <b>cal(F)</b> → ℱ, <b>max over x</b>, <b>X ~ N</b> → ∼, <b>-></b> <b>&lt;=</b> <b>>=</b> <b>!=</b> <b>&lt;=></b> <b>+-</b> → → ≤ ≥ ≠ ⇔ ±. Ordinary words (“in the”, “the union of”, “partial derivative”) stay as they are. Two formulas with only a space between them join into one. In Typst, <b>grad</b> is ∇. Equation blocks are typed in Typst too, with the math above the box; turning a paragraph into an equation keeps just its formula (words around it become "…"), and an equation turned back into text becomes a displayed formula. (Prefer your own words, or editing the symbols in place? Switch at the bottom of the symbols palette, ' + M + ';.) <b>Select words and type $</b> to make them math (<b>$$</b> right after = displayed); select and type <b>*</b> <b>_</b> <b>=</b> <b>`</b> for bold, italic, highlight, code. ' + M + '⇧E inserts an empty formula. In a matrix, ' + M + '↵ adds a row and ' + M + '⇧↵ a column. <b>Esc</b> leaves the block (it stays selected); <b>Enter</b> edits it again.</p>' +
     '<h3>Math without LaTeX</h3>' + T(ex.map(x => [x, inlineHtml(x)])) +
     '<h3>Start a block with…</h3>' + T([['def:  thm:  prop:  lem:  cor:', 'Definition / Theorem / … box'], ['pf:', 'Proof (title “of Theorem 3” links it)'], ['ex:  rmk:  intu:  motiv:  warn:  exercise:', 'Example, Remark, Intuition, Motivation, Watch out, Exercise (thm. def. pf. work with a full stop too; Backspace right after undoes it)'], ['fix:', 'Correction (something in lecture was wrong)'], ['ask:', 'Question for your teacher'], ['#  ##  ###', 'Headings'], ['$$', 'Numbered equation'], ['|', 'Table'], ['draw:', 'Drawing: pen, boxes, circles, arrows, text boxes (double-click to type in a shape; hold the pen still to snap a stroke to a shape)'], ['```python', 'Code'], ['---', 'Divider'], ['[todo] [check] [ask] [try] [star] [error]', 'add a mark'], ['/', 'menu of every block type']].map(r => [r[0], esc(r[1])])) +
@@ -16988,6 +17074,7 @@ function renderHelp() {
     '<h3>Handwritten notes</h3><p><b>✎ Handwritten</b> (left sidebar) makes a note of paper pages for your stylus — pen, highlighter, shapes and text, palm rejection, a new page appears as you reach the bottom. Point at a page number for <b>＋</b> (page after) and the <b>bin</b> (delete the page; undo brings it back); <b>⋯ → Delete pages…</b> removes a range. <b>⤓ Save as PDF</b> gives <b>📄 PDF printout</b> pages back at the PDF’s own page size. <b>✦ Convert to typed notes</b> creates a linked typed copy (math, boxes, your diagrams kept as drawings); the handwriting stays untouched.</p>' +
     '<h3>Readings & chat</h3><p><b>📖 Readings</b> keeps each course’s PDFs next to your notes — select text to quote it in, or to <b>highlight</b> it. In the reader’s toolbar, <b>✎ Pen</b> writes on the page, <b>▭ Box</b> lets you drag a box around any part (a formula, a figure) and either write a <b>comment</b> on it or <b>ask Claude</b> about it — Claude gets a picture of the box, so formulas drawn as images are readable, and the answer stays on the box and in the chat — and <b>⌫ Erase</b> removes a mark (' + M + 'Z undoes). <b>⛶ Full screen</b> fills the window with the reading and puts the Claude chat beside it (Esc to go back). Your marks are kept with the reading, for every note in that course. <b>Ask</b> is a chat with Claude that sees these notes, the block you’re on, your open reading page, and this course’s readings — it looks up the pages that match your question; name the slides, the book or a page (“p. 114”) to have it read more. Readings belong to a course, so the note needs that course set. Formulas that are pictures in a PDF don’t come through as text.</p>';
   $('helpClose').onclick = () => { $('help').hidden = true; };
+  $('helpTour').onclick = () => { $('help').hidden = true; window.__web.tour(); };
 }
 function toggleHelp(show) { const h = $('help'); if (show == null) show = h.hidden; if (show) renderHelp(); h.hidden = !show; }
 $('helpBtn').onclick = () => toggleHelp();
