@@ -1485,12 +1485,42 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     d.addEventListener('change', (e) => {
       if (e.target === $q('effort')) { ls.set(EFF, e.target.value === 'auto' ? '' : e.target.value); say(cmsg, 'Effort: ' + e.target.options[e.target.selectedIndex].text + '.', 'ok'); }
       if (e.target === sel && getKey(pv)) { ls.set(PV.model, sel.value); say(cmsg, 'Using ' + sel.options[sel.selectedIndex].text + '.', 'ok'); }
-      if (e.target.name === 'nbprov') { ls.set(PROV, e.target.value); d.close(); W.settings(); }
+      if (e.target.name === 'nbprov') { ls.set(PROV, e.target.value); d.close(); W.applyAiName(); W.settings(); }
       if (e.target === $q('auto')) { const D2 = window.__nbDrive; if (D2) D2.setAuto(e.target.checked); }
     });
     setTimeout(() => { const f = focus === 'drive' ? d.querySelector('[data-x="gin"],[data-x="gnow"]') : (!hasKey ? inp : null); if (f) f.focus(); }, 30);
   };
   W.keyDialog = () => W.settings();
+
+  // ---------------------------------------------------------------- the assistant's name follows the chosen provider
+  // The notebook's buttons, menus and messages say “Claude”; with OpenAI (or Harvard's OpenAI) they say “GPT”.
+  // Notes, comment text, chat messages and anything you type are never touched.
+  const aiName = () => P[provider()].oa ? 'GPT' : 'Claude';
+  const KEEP = '.view,.ed,textarea,input,select,[contenteditable="true"],.cb,.rb,.cq,.msg,.katex,pre,code,.wdlg,.ph';
+  const NAME_RE = /\b(Claude|GPT)\b/g;
+  function relabel(root) {
+    const name = aiName(); if (!root) return;
+    const fix = (t) => t.replace(NAME_RE, (m) => m === name ? m : name);
+    if (root.nodeType === 3) { const el = root.parentElement; if (el && !el.closest(KEEP) && NAME_RE.test(root.data)) { NAME_RE.lastIndex = 0; const v = fix(root.data); if (v !== root.data) root.data = v; } NAME_RE.lastIndex = 0; return; }
+    if (root.nodeType !== 1 || root.closest(KEEP)) return;
+    if (!/Claude|GPT/.test(root.textContent) && !root.querySelector('[title*="Claude"],[title*="GPT"],[aria-label*="Claude"],[aria-label*="GPT"],[placeholder*="Claude"],[placeholder*="GPT"]')
+      && !/Claude|GPT/.test((root.getAttribute('title') || '') + (root.getAttribute('aria-label') || '') + (root.getAttribute('placeholder') || ''))) return;
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: (n) => n.parentElement && !n.parentElement.closest(KEEP) && /Claude|GPT/.test(n.data) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+    for (let n; (n = w.nextNode());) { const v = fix(n.data); if (v !== n.data) n.data = v; }
+    for (const el of [root, ...root.querySelectorAll('[title],[aria-label],[placeholder]')]) {
+      if (el.closest(KEEP) && el.tagName !== 'TEXTAREA' && el.tagName !== 'INPUT') continue; if (el.closest('.wdlg')) continue;
+      for (const a of ['title', 'aria-label', 'placeholder']) { const v = el.getAttribute(a); if (v && /Claude|GPT/.test(v)) { const nv = fix(v); if (nv !== v) el.setAttribute(a, nv); } }
+    }
+  }
+  let nameObs = null;
+  W.applyAiName = () => {
+    if (!document.body) return;
+    relabel(document.body);
+    if (!nameObs) { nameObs = new MutationObserver((ms) => { if (aiName() === 'Claude' && !nameObs.gpt) return; for (const m of ms) { if (m.type === 'characterData') relabel(m.target); else for (const n of m.addedNodes) relabel(n); } });
+      nameObs.observe(document.body, { childList: true, subtree: true, characterData: true }); }
+    nameObs.gpt = aiName() !== 'Claude' || nameObs.gpt; // once renamed, keep watching so switching back renames back
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { if (aiName() !== 'Claude') W.applyAiName(); }); else if (aiName() !== 'Claude') W.applyAiName();
 
   // ---------------------------------------------------------------- whole-notebook backup file
   W.backup = async () => {
@@ -1499,16 +1529,20 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     for (const [k, b] of blobs) out.blobs[k] = { type: b.type, data: await b64(b) };
     saveFile('lecture-notebook-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify(out), 'application/json');
   };
+  // put a whole-notebook backup (from this website or the claude.ai notebook) into this browser
+  W.restoreData = async (j) => {
+    await init();
+    for (const [k, v] of Object.entries(j.docs)) { if (/^settings\//.test(k)) continue; mem.set(k, freeze(v)); index(k, true); await put('docs', k, v); }
+    for (const [k, x] of Object.entries(j.blobs || {})) { const b = new Blob([fromB64(x.data)], { type: x.type }); blobs.set(k, b); await put('blobs', k, b); }
+  };
   W.restore = () => {
     const f = document.createElement('input'); f.type = 'file'; f.accept = '.json,application/json';
     f.onchange = async () => {
       const file = f.files && f.files[0]; if (!file) return; let j; try { j = JSON.parse(await file.text()); } catch (e) { alert('That file isn’t a notebook backup.'); return; }
       if (!j || j.app !== 'lecture-notebook' || !j.docs) { alert('That file isn’t a notebook backup.'); return; }
       const n = Object.keys(j.docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
-      if (!confirm('Add the ' + n + ' notes from this backup to this device? Notes with the same name in both are replaced by the backup copy.')) return;
-      await init();
-      for (const [k, v] of Object.entries(j.docs)) { mem.set(k, freeze(v)); index(k, true); await put('docs', k, v); }
-      for (const [k, x] of Object.entries(j.blobs || {})) { const b = new Blob([fromB64(x.data)], { type: x.type }); blobs.set(k, b); await put('blobs', k, b); }
+      if (!confirm('Add the ' + n + ' notes from this backup' + (j.from === 'claude.ai' ? ' (made in the claude.ai notebook)' : '') + ' to this browser? A note that is already here is replaced by the backup’s copy; nothing else is deleted.')) return;
+      await W.restoreData(j);
       if (bc) bc.postMessage({ reload: 1 }); location.reload();
     };
     f.click();
@@ -16772,6 +16806,32 @@ async function saveFile(name, data) {
   try { const blob = data instanceof Blob ? data : new Blob([data]); const u = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = u; a.download = name; a.rel = 'noopener'; a.style.display = 'none'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000); toast('Downloading ' + name); return true; }
   catch (e) { toast(/\.zip$/i.test(name) ? 'Couldn’t save the file here — use Copy LaTeX instead.' : /\.pdf$/i.test(name) ? 'Couldn’t save the PDF here.' : 'Couldn’t save the file.'); return false; }
 }
+// ---------------------------------------------------------------- the whole notebook as one file (v169): the file the website's
+// "Restore from a backup file" reads, so notes move from here to the website (or to another account's copy)
+async function backupNotebookFile() {
+  if (Store.mode !== 'db' || !Store.db) { toast('Nothing to back up here yet'); return; }
+  toast('Packing your notebook…');
+  const out = { app: 'lecture-notebook', v: 1, saved: now(), from: window.__web ? 'web' : 'claude.ai', docs: {}, blobs: {} };
+  const col = async (p) => { try { return (await Store.db.collection(p).get()).docs.map(d => [d.id, plainData(d)]); } catch (e) { return []; } };
+  for (const [id, m] of await col('docs')) {
+    if (m) out.docs['docs/' + id] = m;
+    for (const sub of ['blocks', 'inkx', 'chat']) for (const [k, v] of await col('docs/' + id + '/' + sub)) if (v != null) out.docs['docs/' + id + '/' + sub + '/' + k] = v;
+  }
+  for (const [key, c] of await col('courses')) {
+    if (c) out.docs['courses/' + key] = c;
+    for (const [k, v] of await col('courses/' + key + '/ann')) if (v != null) out.docs['courses/' + key + '/ann/' + k] = v;
+  }
+  // the pictures and PDFs the notes and readings use (stored files have 32-character ids)
+  const ids = new Set((JSON.stringify(out.docs).match(/"[0-9a-f]{32}"/g) || []).map(x => x.slice(1, -1)));
+  let files = 0;
+  for (const id of ids) {
+    try { const r = await fetch(BLOB(id)); if (!r.ok) continue; const b = await r.blob(); if (!b.size) continue; out.blobs[id] = { type: b.type || 'application/octet-stream', data: await Drive.b64(b) }; files++; } catch (e) {}
+  }
+  const notes = Object.keys(out.docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
+  const ok = await saveFile('lecture-notebook-backup-' + now().slice(0, 10) + '.json', new Blob([JSON.stringify(out)], { type: 'application/json' }));
+  if (ok) toast('Backed up ' + notes + ' note' + (notes === 1 ? '' : 's') + ' and ' + files + ' picture' + (files === 1 ? '' : 's') + ' / PDF' + (files === 1 ? '' : 's') + ' — on the website: Export → Restore from a backup file');
+}
+window.__nbBackupFile = backupNotebookFile;
 async function exportZip(opt) {
   const zip = new JSZip(); const ext = {};
   for (const b of ordered()) {
@@ -16807,7 +16867,7 @@ $('exportBtn').onclick = () => {
     { html: (state.showResolved ? 'Hide' : 'Show') + ' resolved comments', fn: () => { state.showResolved = !state.showResolved; renderAll(); } },
     { sep: 1 },
     { html: 'Help & shortcuts<small>? or ' + (isMac ? '⌘/' : 'Ctrl+/') + '</small>', fn: () => toggleHelp(true) }
-  ].concat(window.__web ? window.__web.menu() : []));
+  ].concat(window.__web ? window.__web.menu() : [{ sep: 1 }, { html: '⤓ Back up whole notebook to a file<small>everything — open it on the website or another account</small>', fn: backupNotebookFile }]));
 };
 
 // phone / small iPad: the notes drawer sits over a dim backdrop; a tap on it only closes the drawer (it doesn't reach the page underneath)

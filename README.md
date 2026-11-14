@@ -43,7 +43,7 @@ Harvard's gateway works from code but doesn't send the CORS headers browsers req
 
 The relay only forwards chat and model-list requests to Harvard's two OpenAI products, and only for pages from the allowed sites.
 
-The buttons in the notebook still say “Claude” (✦ Claude, Ask); with OpenAI chosen they use your OpenAI model.
+With OpenAI or Harvard OpenAI chosen, the notebook's buttons and messages say “GPT” instead of “Claude”.
 
 ### Google Drive backup
 
@@ -84,6 +84,12 @@ When the Google window closes without connecting, Google usually showed an “Ac
 | Google Drive API has not been used… (after connecting) | Enable the **Google Drive API** in the same project. |
 
 Pop-up blockers and some in-app browsers also stop the sign-in window. Use a regular browser window (Chrome, Safari, Edge or Firefox) with pop-ups allowed for the site.
+
+## Moving notes between the claude.ai notebook, the website and other accounts
+
+- **From the claude.ai notebook to the website:** in the claude.ai notebook, **Export → Back up whole notebook to a file**. On the website, **Export → Restore from a backup file** (or ⚙ Settings → Backup file → Restore from a file) and pick that file. Notes, handwriting, comments, chats, course readings and their PDF annotations, pictures and PDFs all come along.
+- **From one browser or account's website copy to another:** **Back up to a file** on one, **Restore from a file** on the other. Or connect the same Google account's Drive on both and use **Load from Drive**.
+- Restoring adds the notes that aren't there yet and replaces the ones that are (the same note, not just the same title); nothing else is deleted.
 
 ## Where your notes are kept
 
