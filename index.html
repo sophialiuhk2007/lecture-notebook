@@ -969,6 +969,12 @@ body.hasSelbar .toast{bottom:calc(76px + env(safe-area-inset-bottom,0px))}
 body.readfull .rpanel{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
 /* phone top bar: one row; formatting, Export and the rest move into ⋯ */
 .barmore{display:none}
+/* any width: when the bar would wrap, first the title and button labels go, then the least-used buttons move into ⋯ (fitBar picks the step) */
+body.bfit2 header.bar .barmore,body.bfit3 header.bar .barmore,body.bfit4 header.bar .barmore{display:inline-flex}
+body.bfit1 header.bar .brand,body.bfit1 header.bar .lbl,body.bfit1 #helpBtn{display:none!important}
+body.bfit2 header.bar .brand,body.bfit2 header.bar .lbl,body.bfit2 #helpBtn,body.bfit2 #asideBtn,body.bfit2 #splitBtn,body.bfit2 #scrBtn{display:none!important}
+body.bfit3 header.bar .brand,body.bfit3 header.bar .lbl,body.bfit3 #helpBtn,body.bfit3 #setBtn,body.bfit3 #asideBtn,body.bfit3 #splitBtn,body.bfit3 #scrBtn,body.bfit3 #findBtn,body.bfit3 #cmtTog,body.bfit3 #reviewBtn,body.bfit3 #driveBtn{display:none!important}
+body.bfit4 header.bar .brand,body.bfit4 header.bar .lbl,body.bfit4 #helpBtn,body.bfit4 #setBtn,body.bfit4 #asideBtn,body.bfit4 #splitBtn,body.bfit4 #scrBtn,body.bfit4 #findBtn,body.bfit4 #cmtTog,body.bfit4 #reviewBtn,body.bfit4 #driveBtn,body.bfit4 header.bar .seg,body.bfit4 #saveState:not(.warn){display:none!important}
 @media (max-width:560px){
   header.bar{flex-wrap:nowrap;gap:2px;padding-block:5px}
   header.bar .barmore{display:inline-flex}
@@ -16637,12 +16643,27 @@ $('exportBtn').onclick = () => {
   side.addEventListener('click', e => { if (e.target.closest && e.target.closest('[data-sread]')) side.classList.remove('open'); }, true); }
 // phone top bar: what doesn't fit goes under ⋯
 $('barMore').addEventListener('mousedown', e => e.preventDefault());
+// keep the top bar on one row: try every button, then move the least-used ones into ⋯ until the row fits
+// (handwritten notes and phones have their own layouts for the bar)
+function fitBar() {
+  const bd = document.body, hdr = document.querySelector('header.bar'); if (!hdr) return;
+  bd.classList.remove('bfit1', 'bfit2', 'bfit3', 'bfit4');
+  if (bd.classList.contains('inkdoc') || bd.classList.contains('inkfull') || innerWidth <= 560) return;
+  const wraps = () => { let lo = Infinity, hi = -Infinity; for (const c of hdr.children) { if (!c.offsetParent || !c.offsetWidth) continue; const t = c.offsetTop + c.offsetHeight / 2; lo = Math.min(lo, t); hi = Math.max(hi, t); } return hi - lo > 12; }; // (centres: the spacer and dividers sit lower than the buttons' tops)
+  for (const k of ['bfit1', 'bfit2', 'bfit3', 'bfit4']) { if (!wraps()) return; bd.classList.remove('bfit1', 'bfit2', 'bfit3', 'bfit4'); bd.classList.add(k); }
+}
+{ let fbT = 0; const fitSoon = () => { clearTimeout(fbT); fbT = setTimeout(fitBar, 30); };
+  window.addEventListener('resize', fitSoon);
+  try { new ResizeObserver(fitSoon).observe(document.documentElement); } catch (e) {}
+  try { new MutationObserver(fitSoon).observe(document.querySelector('header.bar'), { attributes: true, attributeFilter: ['hidden', 'class'], subtree: true, childList: true });
+    let bodySig = ''; new MutationObserver(() => { const sg = document.body.className.replace(/\bbfit\d\b/g, '').trim(); if (sg !== bodySig) { bodySig = sg; fitSoon(); } }).observe(document.body, { attributes: true, attributeFilter: ['class'] }); } catch (e) {}
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitSoon); setTimeout(fitSoon, 0); }
 $('barMore').onclick = () => {
   const F = (f, h) => ({ html: h, fn: () => format(f) }), C = (id, h) => ({ html: h, fn: () => $(id).click() });
   const reanchor = () => setTimeout(() => { const m = document.querySelector('.menu'), r = $('barMore').getBoundingClientRect(); if (m) { m.style.left = Math.max(8, innerWidth - m.offsetWidth - 8) + 'px'; m.style.top = (r.bottom + 4) + 'px'; } }, 0);
   openMenu($('barMore'), [{ head: 'Format' }, F('bold', '<b>B</b> Bold'), F('italic', '<i>I</i> Italic'), F('underline', '<u>U</u> Underline'), F('hl', '▮ Highlight'), F('ul', '• Bulleted list'), F('task', '☑ Check-off list'), F('ol', '№ Numbered list'), F('symbols', '∑ Symbols'), F('ref', '@ Refer to…'), F('mark', '⚑ Mark…'), F('comment', '💬 Comment'),
     { sep: 1 }, C('findBtn', '⌕ Find & replace'), C('scrBtn', '✎ Scratch paper'), C('splitBtn', '◫ Side by side'), C('asideBtn', '◌ Aside mode' + ($('asideBtn').getAttribute('aria-pressed') === 'true' ? '<small>on</small>' : '')), C('reviewBtn', '▤ Review flashcards'), C('cmtTog', (document.body.classList.contains('nocmts') ? '💬 Show' : '💬 Hide') + ' comments'), C('helpBtn', '? Help & shortcuts'),
-    { sep: 1 }].concat($('outlineFab').hidden ? [] : [C('outlineFab', '☰ Outline')], [{ html: '⤓ Export…', fn: () => { $('exportBtn').onclick(); reanchor(); } }]));
+    { sep: 1 }].concat($('driveBtn').hidden ? [] : [{ html: '☁ Google Drive backup', fn: () => Drive.menu() }], window.__web && window.__web.settings ? [{ html: '⚙ Settings', fn: () => window.__web.settings() }] : []).concat($('outlineFab').hidden ? [] : [C('outlineFab', '☰ Outline')], [{ html: '⤓ Export…', fn: () => { $('exportBtn').onclick(); reanchor(); } }]));
 };
 // ---------------------------------------------------------------- help
 function renderHelp() {
