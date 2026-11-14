@@ -29,7 +29,7 @@ Everything else works without either.
 
 ## Where your notes are kept
 
-In your browser, on your device. There’s no server storing them. Clearing the site’s data deletes them, so keep Drive backup on or use **Export → Back up whole notebook** now and then. **Export → Restore from a backup file** brings a backup into any browser, including one made in the claude.ai version of the notebook.
+In your browser, on your device. There’s no server storing them. Clearing the site’s data deletes them, so keep Drive backup on or use **Export → Back up whole notebook** now and then. It saves a .zip (several parts for a big notebook); **Export → Restore from a backup file** brings it into any browser (pick all the parts at once), including one made in the claude.ai version of the notebook.
 
 On iPad: Share → **Add to Home Screen** opens it full screen like an app.
 
