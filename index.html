@@ -9126,6 +9126,7 @@ function openClaudeMenu(anchor) {
   items.push({ html: '✦ Summarize this lecture<small>adds a Summary box</small>', fn: summarizeDoc });
   items.push({ html: '✦ Ask about these notes…<small>chat</small>', fn: () => Panel.open('chat') });
   items.push({ html: 'Version history<small>restore raw copies</small>', fn: openVersions });
+  if (!window.__web) items.push({ sep: 1 }, { html: '⚙ Claude model…<small>' + esc(chosenModelLabel()) + '</small>', fn: openModelChoice });
   openMenu(anchor, items);
 }
 function slashMenu(b, f) {
@@ -13253,7 +13254,36 @@ function mergeAside(ids) { change('merge into notes', ids, () => { for (const id
 function makeAside(ids) { change('make aside', ids, () => { for (const id of ids) { const b = state.blocks.get(id); if (b) { b.aside = { t: now() }; Store.saveBlock(state.docId, b, 0); } } }); renderAll(); }
 
 // ---------------------------------------------------------------- Claude helpers
-async function getSample() { try { return window.claude && window.claude.use ? await window.claude.use('sample') : null; } catch (e) { return null; } }
+async function getSample() { try { const s = window.claude && window.claude.use ? await window.claude.use('sample') : null; return s && !window.__web ? withChosenModel(s) : s; } catch (e) { return null; } }
+// ---- the Claude model + effort for every request (✦ Claude menu → Claude model…); '' = automatic. A call that names its own
+// model (the conversion dialogs' picker) keeps it.
+const ALL_MODELS = [['', 'Automatic', 'claude.ai picks for each task'], ['claude-opus-5-5', 'Opus 5.5', 'most capable'], ['claude-sonnet-5-5', 'Sonnet 5.5', 'fast and capable'], ['claude-opus-5', 'Opus 5', ''], ['claude-haiku-5-5', 'Haiku 5.5', 'fastest']];
+const ALL_EFFORTS = [['', 'Automatic', 'matched to the task'], ['low', 'Low', 'fastest'], ['medium', 'Medium', ''], ['high', 'High', 'most careful'], ['xhigh', 'Extra high', ''], ['max', 'Max', 'slowest']];
+function chosenOpts(o) {
+  o = Object.assign({}, o); const m = lsGet('nb.aiModelAll') || '', e = lsGet('nb.aiEffortAll') || '';
+  if (m && !o.model) { o.model = m; if (!o.modelTier) o.modelTier = 'default'; }
+  if (e && !o.effort) o.effort = e;
+  return o;
+}
+window.__nbChosenOpts = chosenOpts;
+function withChosenModel(s) {
+  const w = function (input, o) { return s(input, chosenOpts(o)); };
+  if (typeof s.json === 'function') w.json = (input, o) => s.json(input, chosenOpts(o));
+  if (typeof s.limits === 'function') w.limits = (...a) => s.limits(...a);
+  return w;
+}
+function chosenModelLabel() { const m = lsGet('nb.aiModelAll') || '', e = lsGet('nb.aiEffortAll') || ''; const ml = (ALL_MODELS.find(x => x[0] === m) || ALL_MODELS[0])[1], el = (ALL_EFFORTS.find(x => x[0] === e) || ALL_EFFORTS[0])[1]; return m || e ? ml + ' · ' + el + ' effort' : 'Automatic'; }
+function openModelChoice() {
+  const m = lsGet('nb.aiModelAll') || '', e = lsGet('nb.aiEffortAll') || '';
+  const opts = (list, cur) => list.map(([v, l, h]) => '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + l + (h ? ' — ' + h : '') + '</option>').join('');
+  const d = modal('<div style="width:min(420px,calc(100vw - 48px));font:13px var(--f-ui)"><b>✦ Claude model</b><p class="hint" style="margin:4px 0 10px">Used for Ask, explanations, comment replies, interactives and the other ✦ tools. Converting handwriting or a PDF into notes has its own choice in that dialog.</p>' +
+    '<label style="display:block;margin:6px 0">Model<select data-mc="model" style="display:block;width:100%;margin-top:3px">' + opts(ALL_MODELS, m) + '</select></label>' +
+    '<label style="display:block;margin:6px 0">Effort <span class="hint">— how hard Claude thinks before answering</span><select data-mc="effort" style="display:block;width:100%;margin-top:3px">' + opts(ALL_EFFORTS, e) + '</select></label>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" data-mc="cancel">Cancel</button><button class="btn go" data-mc="save">Save</button></div></div>');
+  d.addEventListener('click', ev => { const b = ev.target.closest('[data-mc]'); if (!b || b.tagName === 'SELECT') return;
+    if (b.dataset.mc === 'save') { lsSet('nb.aiModelAll', d.querySelector('[data-mc="model"]').value); lsSet('nb.aiEffortAll', d.querySelector('[data-mc="effort"]').value); toast('Claude: ' + chosenModelLabel()); }
+    if (b.dataset.mc === 'save' || b.dataset.mc === 'cancel') d.remove(); });
+}
 // ---- which Claude model does the heavy jobs (converting handwriting / PDFs into notes). Sophia, Nov 12: "default to Opus 5.5 high"
 const AI_MODELS = [['claude-opus-5-5', 'Opus 5.5'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-opus-5', 'Opus 5'], ['', 'Automatic (best available)']];
 const AI_EFFORTS = [['high', 'High'], ['medium', 'Medium'], ['low', 'Low']];
@@ -16356,7 +16386,7 @@ $('exportBtn').onclick = () => {
     { html: (state.showResolved ? 'Hide' : 'Show') + ' resolved comments', fn: () => { state.showResolved = !state.showResolved; renderAll(); } },
     { sep: 1 },
     { html: 'Help & shortcuts<small>? or ' + (isMac ? '⌘/' : 'Ctrl+/') + '</small>', fn: () => toggleHelp(true) }
-  ].concat(window.__web ? window.__web.menu() : [{ sep: 1 }, { html: '⤓ Back up whole notebook to a file<small>everything — open it on the website or another account</small>', fn: backupNotebookFile }]));
+  ].concat(window.__web ? window.__web.menu() : [{ sep: 1 }, { html: '⤓ Back up whole notebook to a file<small>everything — open it on the website or another account</small>', fn: backupNotebookFile }, { html: '⚙ Claude model…<small>' + esc(chosenModelLabel()) + '</small>', fn: openModelChoice }]));
 };
 
 // phone / small iPad: the notes drawer sits over a dim backdrop; a tap on it only closes the drawer (it doesn't reach the page underneath)
