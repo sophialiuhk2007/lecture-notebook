@@ -7112,8 +7112,15 @@ function copyBlocks(ids, cut) {
   state.clip = { text, blocks };
   // the blocks themselves ride along in the formatted copy, so they paste back as blocks anywhere in the notebook (other notes, tabs, after a reload)
   const tag = '<span data-nbblocks="' + encodeURIComponent(JSON.stringify({ v: 1, blocks: blocks.map(b => { const c = clone(b); delete c.comments; return c; }) })) + '"></span>';
-  copyText(text, (cut ? 'Cut ' : 'Copied ') + ids.length + ' block' + (ids.length > 1 ? 's' : ''), tag + hs.join(''));
+  const msg = (cut ? 'Cut ' : 'Copied ') + ids.length + ' block' + (ids.length > 1 ? 's' : '');
+  if (copyNow(text, tag + hs.join(''))) toast(msg); else copyText(text, msg, tag + hs.join(''));
   if (cut) deleteBlocks(ids, 'cut');
+}
+function pasteCatcher() {
+  let pc = document.getElementById('pasteCatcher');
+  if (!pc) { pc = document.createElement('div'); pc.id = 'pasteCatcher'; pc.contentEditable = 'true'; pc.tabIndex = -1; pc.setAttribute('aria-hidden', 'true'); pc.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;overflow:hidden;opacity:0'; document.body.appendChild(pc);
+    pc.addEventListener('blur', () => { pc.textContent = ''; }); pc.addEventListener('input', () => { pc.textContent = ''; }); }
+  return pc;
 }
 // blocks copied in this notebook, from a paste's clipboard (or this page's last copy); null for anything else
 function clipBlocks(cd) {
@@ -8543,8 +8550,10 @@ document.addEventListener('keydown', e => {
   if (mod && ((k === 'z' && e.shiftKey) || k === 'y')) { e.preventDefault(); redo(); return; }
   if (mod && k === ';') { e.preventDefault(); openPalette(); return; }
   if (mod && k === 'a') { e.preventDefault(); setSel(state.order.slice(), state.order[0]); return; }
-  // Ctrl/⌘+V with blocks copied: Safari (iPad) sends no paste event outside a text field, so paste them ourselves if none arrives
-  if (mod && k === 'v' && state.clip && !e.shiftKey) { clearTimeout(window.__pastePend); window.__pastePend = setTimeout(() => { window.__pastePend = 0; pasteBlocks(selIds().pop()); }, 150); return; }
+  // Ctrl/⌘+V with nothing being edited: browsers send no paste event there, so a hidden paste target takes it (blocks copied in another tab /
+  // the other notebook arrive through it); if still nothing arrives (Safari), paste this page's own last copy
+  if (mod && k === 'v' && !e.shiftKey) { const pc = pasteCatcher(); pc.textContent = ''; pc.focus({ preventScroll: true });
+    clearTimeout(window.__pastePend); window.__pastePend = setTimeout(() => { window.__pastePend = 0; pc.blur(); if (state.clip) pasteBlocks(selIds().pop()); }, 250); return; }
   if ((e.key === 'Delete' || e.key === 'Backspace') && !mod && !e.altKey) { const sel = getSelection(); if (sel && !sel.isCollapsed && sel.rangeCount && $('blocks').contains(sel.getRangeAt(0).commonAncestorContainer) && deleteSelText(sel)) { e.preventDefault(); return; } }
   if (mod && !e.shiftKey && !e.altKey && (k === '.' || k === ',')) { const sel = getSelection(); if (sel && !sel.isCollapsed) { e.preventDefault(); format(k === '.' ? 'sup' : 'sub'); return; } }
   if (!state.sel.size) {
@@ -8768,6 +8777,7 @@ document.addEventListener('paste', e => {
 }, true);
 document.addEventListener('paste', e => {
   if (!state.docId) return;
+  if (e.target && e.target.id === 'pasteCatcher' && window.__pastePend) { clearTimeout(window.__pastePend); window.__pastePend = 0; setTimeout(() => e.target.blur(), 0); }
   const items = e.clipboardData && [...e.clipboardData.items].filter(i => i.type.startsWith('image/'));
   if (items && items.length) {
     // a picture pasted into the Ask box, a comment / reply, the readings panel or a PDF card is not meant for the notes
@@ -8778,6 +8788,7 @@ document.addEventListener('paste', e => {
   }
   const inField = e.target.closest && e.target.closest('textarea,input');
   if (window.__pastePend) { clearTimeout(window.__pastePend); window.__pastePend = 0; }
+  if (e.target.id === 'pasteCatcher') { setTimeout(() => e.target.blur(), 0); const cbs = clipBlocks(e.clipboardData); e.preventDefault(); if (cbs) pasteBlocks(selIds().pop(), cbs); return; }
   if (!inField && !(e.target.closest && e.target.closest('.rt'))) { const cbs = clipBlocks(e.clipboardData); const t = e.clipboardData && e.clipboardData.getData('text/plain'); if (cbs || (state.clip && !t)) { e.preventDefault(); pasteBlocks(selIds().pop(), cbs || state.clip.blocks); } }
 });
 // pasted text: \( … \) → $…$, \[ … \] (on its own line) → displayed $ … $, $$…$$ in a sentence → inline $…$
@@ -16366,6 +16377,15 @@ async function exportZip(opt) {
   zip.file('README.txt', 'Compile notes.tex with pdflatex (twice, for references) — e.g. upload the whole folder to Overleaf.\n');
   const blob = await zip.generateAsync({ type: 'blob' });
   const o = opt || {}; await saveFile(((m.title || 'notes').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'notes') + '_latex' + (o.plain ? '_handin' : o.noAsides ? '_clean' : '') + '.zip', blob);
+}
+// write the clipboard right now (inside the key press or click that asked for it): works in frames that refuse the async clipboard
+function copyNow(t, html) {
+  let ok = false; const ae = document.activeElement;
+  const ta = document.createElement('textarea'); ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0'; document.body.appendChild(ta); ta.select();
+  const h = ev => { if (!ev.clipboardData) return; ev.clipboardData.setData('text/plain', t); if (html) ev.clipboardData.setData('text/html', html); ev.preventDefault(); ev.stopImmediatePropagation(); ok = true; };
+  document.addEventListener('copy', h, true); try { document.execCommand('copy'); } catch (e) {} document.removeEventListener('copy', h, true);
+  ta.remove(); if (ae && ae !== document.body && ae.focus) { try { ae.focus({ preventScroll: true }); } catch (e) {} }
+  return ok;
 }
 async function copyText(t, msg, html) {
   try { if (html && window.ClipboardItem && navigator.clipboard.write) await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([t], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]); else await navigator.clipboard.writeText(t); toast(msg || 'Copied'); }
