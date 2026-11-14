@@ -1210,6 +1210,10 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     ? ((P[pv].prefer || []).find(id => ms.some(m => m.id === id))) || ((ms.find(m => /^gpt-\d/.test(m.id) && !/mini|nano/.test(m.id)) || ms.find(m => /^gpt-\d/.test(m.id)) || ms[0] || {}).id || '')
     : ((ms.find(m => m.id === P.anthropic.def) || ms.find(m => /opus/i.test(m.id)) || ms.find(m => /sonnet/i.test(m.id)) || ms[0] || {}).id || P.anthropic.def);
   const TIER_EFFORT = { quick: 'low', default: 'medium', complex: 'high' };
+  // ⚙ Settings → AI → Effort: 'auto' = by task (quick look-ups low, answers medium, big jobs high); otherwise this for every answer
+  // (the handwriting / PDF conversion dialogs have their own model + effort pickers, which win when they're used)
+  const EFF = 'nb.web.effort';
+  const effortChoices = (pv) => [['auto', 'Automatic (by task)'], ['low', 'Low — fastest, cheapest'], ['medium', 'Medium'], ['high', 'High — most careful']].concat(P[pv].oa ? [] : [['xhigh', 'Extra high'], ['max', 'Max — slowest, costliest']]);
   const IMG_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
   const noKey = () => ({ code: 'not_granted', webMsg: 'Connect an AI first: ⚙ Settings → AI (Claude or OpenAI, with your own API key).' });
   const plainMsgs = (input) => (typeof input === 'string' ? [{ role: 'user', content: input }] : input).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: String(m.content || '') }));
@@ -1309,7 +1313,8 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   async function sample(input, o) {
     o = o || {};
     const pv = provider(), key = getKey(pv); if (!key) throw noKey();
-    const effort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(o.effort) ? o.effort : (TIER_EFFORT[o.modelTier] || 'medium');
+    const LV = ['low', 'medium', 'high', 'xhigh', 'max'], pref = ls.get(EFF);
+    const effort = LV.includes(o.effort) ? o.effort : LV.includes(pref) ? pref : (TIER_EFFORT[o.modelTier] || 'medium');
     return P[pv].oa ? sampleOA(pv, key, input, o, effort) : sampleClaude(key, input, o, effort);
   }
   // the notebook's own "Model" pickers (e.g. handwriting → typed notes) list Claude models; with OpenAI they use your OpenAI model
@@ -1420,6 +1425,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
         : '<small style="margin-top:6px">Create a key at <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">' + PV.keySite + '</a>. (' + PV.sub + ' can’t be used by other websites — the API is billed separately.)</small>') +
       '<input data-k="key" type="password" placeholder="' + PV.ph + '" autocomplete="off" spellcheck="false" value="' + (hasKey ? '••••••••••••' : '') + '" aria-label="' + PV.co + ' API key">' +
       '<label style="font-size:12.5px;color:var(--muted,#667)">Model<select data-k="model" aria-label="Model">' + (chosenModel(pv) ? '<option value="' + escH(chosenModel(pv)) + '">' + escH(chosenModel(pv)) + '</option>' : '<option value="">(connect to choose)</option>') + '</select></label>' +
+      '<label style="font-size:12.5px;color:var(--muted,#667)">Effort <span class="hint" style="display:inline">— how hard the model thinks before answering; higher is slower and uses more of your credit</span><select data-k="effort" aria-label="Effort">' + (() => { const cur = ls.get(EFF) || 'auto', ch = effortChoices(pv), v = ch.some(c => c[0] === cur) ? cur : 'high'; return ch.map(([k, l]) => '<option value="' + k + '"' + (k === v ? ' selected' : '') + '>' + l + '</option>').join(''); })() + '</select></label>' +
       (pv === 'harvard' ? '<details' + (ls.get('nb.web.huitBase') ? ' open' : '') + '><summary>Gateway address</summary><small>Where requests go. Default: Harvard’s OpenAI for Community Developers. Harvard’s gateway doesn’t accept calls from web pages, so paste your relay’s address here (README → “Harvard relay”); for pay-as-you-go OpenAI Direct, use that product’s address.</small><input data-k="hbase" spellcheck="false" placeholder="' + HUIT_DEFAULT + '" value="' + escH(ls.get('nb.web.huitBase')) + '"></details>' : '') +
       '<div class="msg" data-k="cmsg"></div><div class="row">' + (hasKey ? '<button data-x="rmkey">Disconnect</button>' : '') + '<button class="go" data-x="savekey">' + (hasKey ? 'Save' : 'Connect ' + PV.name) + '</button></div></div>' +
       '<div class="sec" data-sec="drive"><h4>☁ Google Drive <span class="st' + (gOn ? ' on' : '') + '" data-gst>' + (gOn ? 'Connected' : 'Not connected') + '</span></h4>' +
@@ -1466,6 +1472,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       if (a === 'restore') { d.close(); W.restore(); return; }
     });
     d.addEventListener('change', (e) => {
+      if (e.target === $q('effort')) { ls.set(EFF, e.target.value === 'auto' ? '' : e.target.value); say(cmsg, 'Effort: ' + e.target.options[e.target.selectedIndex].text + '.', 'ok'); }
       if (e.target === sel && getKey(pv)) { ls.set(PV.model, sel.value); say(cmsg, 'Using ' + sel.options[sel.selectedIndex].text + '.', 'ok'); }
       if (e.target.name === 'nbprov') { ls.set(PROV, e.target.value); d.close(); W.settings(); }
       if (e.target === $q('auto')) { const D2 = window.__nbDrive; if (D2) D2.setAuto(e.target.checked); }

@@ -28,7 +28,7 @@ Asking about your notes, explanations, replies in comments, and turning handwrit
 | Key looks like | `sk-ant-…` | `sk-…` / `sk-proj-…` | letters and digits, no `sk-` |
 | Sent only to | `api.anthropic.com` | `api.openai.com` | `go.apis.huit.harvard.edu` (or the gateway address you set) |
 
-Paste the key, pick a model from the list (it shows the models your key can use), and press **Connect**. Each provider keeps its own key, so you can switch back and forth. Usage is billed to your account with that provider. A claude.ai or ChatGPT subscription can't be used by other websites: the APIs are billed separately.
+Paste the key, pick a model from the list (it shows the models your key can use), and press **Connect**. **Effort** sets how hard the model thinks before answering: *Automatic* matches it to the task; Low is fastest and cheapest, High (and, for Claude, Extra high and Max) most careful but slower and costlier. The handwriting / PDF conversion dialogs have their own model and effort pickers. Each provider keeps its own key, so you can switch back and forth. Usage is billed to your account with that provider. A claude.ai or ChatGPT subscription can't be used by other websites: the APIs are billed separately.
 
 **Harvard OpenAI** is for Harvard affiliates using the HUIT API Portal. By default it uses the free **OpenAI for Community Developers** product (`go.apis.huit.harvard.edu/ais-openai-direct-comdev/v2`, $10 a month of credit, FAS and HUIT). For pay-as-you-go OpenAI Direct, set the gateway address to `…/ais-openai-direct/v2`. Use the app's **Key** from the portal, not the Secret, and check that the portal shows it approved: an unapproved key gets “ApiKey not approved”.
 
