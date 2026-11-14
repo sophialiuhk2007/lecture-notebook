@@ -1147,6 +1147,8 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   window.__blobURL = (id) => { const b = blobs.get(id); if (!b) return null; let u = urls.get(id); if (!u) { u = URL.createObjectURL(b); urls.set(id, u); } return u; };
   const hexId = () => { const a = new Uint8Array(16); crypto.getRandomValues(a); return [...a].map(x => x.toString(16).padStart(2, '0')).join(''); };
   const assets = {
+    // like claude.ai's listing: every stored file with its size and type
+    async list() { await init(); const out = []; for (const [id, b] of blobs) out.push({ id, url: '/_blob/' + id, contentType: b.type || '', sizeBytes: b.size, createdAt: '' }); return { assets: out, usage: { files: out.length, bytes: out.reduce((x, a) => x + a.sizeBytes, 0) } }; },
     async upload(blob, o) { await init(); const id = hexId(); const b = (o && o.type && blob.type !== o.type) ? new Blob([blob], { type: o.type }) : blob; blobs.set(id, b); await put('blobs', id, b); if (bc) bc.postMessage({ blob: id, data: b }); return { id, url: window.__blobURL(id), sizeBytes: b.size, contentType: b.type }; },
   };
 
@@ -1530,8 +1532,6 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { if (aiName() !== 'Claude') W.applyAiName(); }); else if (aiName() !== 'Claude') W.applyAiName();
 
   // ---------------------------------------------------------------- whole-notebook backup file
-  // sizes and types of stored files, for the notebook's backup (it packs them into .zip parts)
-  window.__blobInfo = (id) => { const b = blobs.get(id); return b ? { size: b.size, type: b.type || '' } : null; };
   W.backup = async () => {
     if (window.__nbBackupFile) return window.__nbBackupFile();
     await init(); const out = { app: 'lecture-notebook', v: 1, saved: new Date().toISOString(), docs: {}, blobs: {} };
@@ -16980,73 +16980,113 @@ async function saveFile(name, data) {
 // "Restore from a backup file" reads, so notes move from here to the website (or to another account's copy)
 async function backupNotebookFile() {
   if (Store.mode !== 'db' || !Store.db) { toast('Nothing to back up here yet'); return; }
-  const PART = 250 * 1024 * 1024; // each .zip at most about this (one big PDF may make a part bigger)
+  const PART = 150 * 1024 * 1024; // each .zip at most about this (one big PDF may make a part bigger)
   const m = modal('<div style="width:min(460px,calc(100vw - 48px));font:13px var(--f-ui)"><b>⤓ Back up whole notebook</b>' +
-    '<p class="hint" data-bk="msg" style="margin:6px 0 0">Looking through your notebook…</p><div data-bk="ch" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>' +
+    '<p class="hint" data-bk="msg" style="margin:6px 0 0">Reading your notes…</p><div data-bk="bar" style="height:6px;border-radius:3px;background:var(--line);margin-top:8px;overflow:hidden;display:none"><i style="display:block;height:100%;width:0;background:var(--accent);transition:width .2s"></i></div>' +
+    '<div data-bk="ch" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>' +
     '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" data-x="cancel">Cancel</button></div></div>');
   let stop = false; m.querySelector('[data-x="cancel"]').addEventListener('click', () => { stop = true; });
+  const gone = () => stop || !m.isConnected;
   const say = (t) => { const e = m.querySelector('[data-bk="msg"]'); if (e) e.textContent = t; };
+  const bar = (f) => { const b = m.querySelector('[data-bk="bar"]'); if (!b) return; b.style.display = f == null ? 'none' : ''; if (f != null) b.firstChild.style.width = Math.round(Math.min(1, f) * 100) + '%'; };
+  const ch = m.querySelector('[data-bk="ch"]');
   const MB = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n < 1e6 ? 'under 1 MB' : Math.round(n / 1e6) + ' MB';
+  const pl = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+  // run fn over items, `n` at a time
+  const pool = async (items, n, fn) => { let k = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (k < items.length && !gone()) { const x = k++; await fn(items[x], x); } })); };
+  // ---- the notes (several read at once)
   const docs = {};
   const col = async (p) => { try { return (await Store.db.collection(p).get()).docs.map(d => [d.id, plainData(d)]); } catch (e) { return []; } };
-  for (const [id, mm] of await col('docs')) {
-    if (stop) return;
+  const notesList = await col('docs'); let read = 0;
+  await pool(notesList, 6, async ([id, mm]) => {
     if (mm) docs['docs/' + id] = mm;
-    for (const sub of ['blocks', 'inkx', 'chat']) for (const [k, v] of await col('docs/' + id + '/' + sub)) if (v != null) docs['docs/' + id + '/' + sub + '/' + k] = v;
-  }
+    const subs = await Promise.all(['blocks', 'inkx', 'chat'].map(sub => col('docs/' + id + '/' + sub).then(r => [sub, r])));
+    for (const [sub, rows] of subs) for (const [k, v] of rows) if (v != null) docs['docs/' + id + '/' + sub + '/' + k] = v;
+    read++; say('Reading your notes: ' + read + ' of ' + notesList.length + '…'); bar(read / Math.max(1, notesList.length));
+  });
+  if (gone()) return;
   for (const [key, c] of await col('courses')) {
     if (c) docs['courses/' + key] = c;
     for (const [k, v] of await col('courses/' + key + '/ann')) if (v != null) docs['courses/' + key + '/ann/' + k] = v;
   }
+  bar(null);
   const notes = Object.keys(docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
-  // the pictures and PDFs the notes and readings use (stored files have 32-character ids); their sizes, when the server says
+  // ---- the pictures and PDFs the notes and readings use (stored files have 32-character ids), with their sizes and types
   const ids = [...new Set((JSON.stringify(docs).match(/"[0-9a-f]{32}"/g) || []).map(x => x.slice(1, -1)))];
-  const info = {}; let known = 0;
-  say('Looking through ' + ids.length + ' pictures and PDFs…');
-  for (let k = 0; k < ids.length; k += 8) {
-    if (stop || !m.isConnected) return;
-    await Promise.all(ids.slice(k, k + 8).map(async id => { const hi = window.__blobInfo && window.__blobInfo(id); if (hi) { info[id] = hi; known++; return; } try { const r = await fetch(BLOB(id), { method: 'HEAD' }); const n = +r.headers.get('content-length'); if (r.ok && n) { info[id] = { size: n, type: (r.headers.get('content-type') || '').split(';')[0] }; known++; } } catch (e) {} }));
-  }
-  const all = Object.values(info).reduce((a, x) => a + x.size, 0), pdf = Object.values(info).filter(x => x.type === 'application/pdf').reduce((a, x) => a + x.size, 0);
-  const sized = known === ids.length;
-  say(notes + ' note' + (notes === 1 ? '' : 's') + ', ' + ids.length + ' picture' + (ids.length === 1 ? '' : 's') + ' and PDF' + (ids.length === 1 ? '' : 's') + (sized ? ' (' + MB(all) + ')' : '') + '. What should the backup include?');
+  const info = {};
+  if (Store.assets && Store.assets.list) { try { const L = await Store.assets.list(); for (const a of (L && L.assets) || []) info[a.id] = { size: a.sizeBytes, type: a.contentType }; } catch (e) {} }
+  const known = ids.filter(id => info[id]);
+  const all = known.reduce((a, id) => a + info[id].size, 0), pdf = known.filter(id => info[id].type === 'application/pdf').reduce((a, id) => a + info[id].size, 0);
+  const sized = known.length === ids.length && ids.length > 0;
+  say(pl(notes, 'note') + ', ' + pl(ids.length, 'picture') + ' and PDFs' + (sized ? ' (' + MB(all) + ')' : '') + '. What should the backup include?');
   const parts = (n) => Math.max(1, Math.ceil(n / PART));
-  const ch = m.querySelector('[data-bk="ch"]');
   ch.innerHTML = '<button class="btn go" data-bk="all" style="text-align:left;padding:8px 12px">Everything<br><small style="opacity:.85">notes, handwriting, pictures and course PDFs' + (sized ? ' · ' + MB(all) + (parts(all) > 1 ? ' in about ' + parts(all) + ' .zip files' : '') : ' · big notebooks are saved as several .zip files') + '</small></button>' +
-    '<button class="btn" data-bk="nopdf" style="text-align:left;padding:8px 12px">Without the PDFs<br><small class="hint">notes, handwriting and pictures' + (sized ? ' · ' + MB(all - pdf) : '') + ' — add the readings again later</small></button>';
+    '<button class="btn" data-bk="nopdf" style="text-align:left;padding:8px 12px">Without the PDFs<br><small class="hint">notes, handwriting and pictures' + (sized ? ' · ' + MB(all - pdf) : '') + ' — quicker; add the readings again later</small></button>';
   const mode = await new Promise(res => { ch.addEventListener('click', e => { const b = e.target.closest('[data-bk]'); if (b) res(b.dataset.bk); }); m.querySelector('[data-x="cancel"]').addEventListener('click', () => res(null)); });
-  if (!mode || stop) return;
+  if (!mode || gone()) return;
   ch.innerHTML = '';
-  const day = now().slice(0, 10), set = uid('bk');
-  const meta = (k) => ({ app: 'lecture-notebook', v: 2, set, part: k, saved: now(), from: window.__web ? 'web' : 'claude.ai', files: {} });
-  let k = 1, zip = new JSZip(), cur = meta(1), size = 0, files = 0, skipped = 0; const saved = [];
-  zip.file('notebook.json', JSON.stringify({ app: 'lecture-notebook', v: 2, set, saved: now(), from: cur.from, docs }), { compression: 'DEFLATE' });
+  const want = ids.filter(id => !(mode === 'nopdf' && info[id] && info[id].type === 'application/pdf'));
+  const total = want.reduce((a, id) => a + (info[id] ? info[id].size : 0), 0);
+  // ---- saving: through the notebook's download service; a failure is shown, with Try again
+  let dl = null; try { dl = window.claude && window.claude.use ? await window.claude.use('downloads') : null; } catch (e) {}
+  const ask = (html, btns) => new Promise(res => { ch.innerHTML = '<div class="hint">' + html + '</div><div style="display:flex;gap:6px;flex-wrap:wrap">' + btns.map(([k, l, go]) => '<button class="btn' + (go ? ' go' : '') + '" data-bq="' + k + '">' + l + '</button>').join('') + '</div>';
+    ch.querySelectorAll('[data-bq]').forEach(b => b.onclick = () => { ch.innerHTML = ''; res(b.dataset.bq); }); m.querySelector('[data-x="cancel"]').addEventListener('click', () => res('stop')); });
+  const save = async (name, blob) => {
+    if (!dl) return saveFile(name, blob);
+    for (;;) {
+      if (gone()) return false;
+      say('Saving ' + name + ' (' + MB(blob.size) + ') — confirm the download…');
+      try { await dl.save({ filename: name, data: blob }); return true; }
+      catch (e) {
+        const code = (e && e.code) || 'unavailable';
+        if (code === 'rate_limited') { await new Promise(r => setTimeout(r, 2500)); continue; }
+        const why = code === 'declined' ? 'The download of ' + esc(name) + ' was declined (or the prompt timed out).' : 'Saving ' + esc(name) + ' failed (' + esc(code) + (e && e.message ? ': ' + esc(String(e.message).slice(0, 120)) : '') + ').';
+        if ((await ask(why, [['retry', 'Try again', true], ['stop', 'Stop']])) !== 'retry') { stop = true; return false; }
+      }
+    }
+  };
+  // ---- download the files 8 at a time, packing them into parts
+  const fetchOne = async (id) => {
+    for (let t = 0; t < 2; t++) {
+      const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 120000);
+      try { const r = await fetch(BLOB(id), { signal: ac.signal }); if (r.ok) { const b = await r.blob(); clearTimeout(tm); return b; } } catch (e) {}
+      clearTimeout(tm); if (gone()) return null;
+    }
+    return null;
+  };
+  const day = now().slice(0, 10), set = uid('bk'), from = window.__web ? 'web' : 'claude.ai';
+  const meta = (k) => ({ app: 'lecture-notebook', v: 2, set, part: k, saved: now(), from, files: {} });
+  let k = 1, zip = new JSZip(), cur = meta(1), size = 0, files = 0, failed = 0, done = 0, bytes = 0; const saved = [];
+  zip.file('notebook.json', JSON.stringify({ app: 'lecture-notebook', v: 2, set, saved: now(), from, docs }), { compression: 'DEFLATE' });
   const flush = async (last) => {
     zip.file('backup.json', JSON.stringify(Object.assign(cur, { last: !!last })));
     say('Packing part ' + k + '…');
     const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
     const name = 'lecture-notebook-backup-' + day + (last && k === 1 ? '' : '-part' + k) + '.zip';
-    say('Saving ' + name + ' (' + MB(blob.size) + ')…');
-    const ok = await saveFile(name, blob); if (!ok) { stop = true; return false; }
+    if (!(await save(name, blob))) return false;
     saved.push(name); return true;
   };
-  for (let n = 0; n < ids.length; n++) {
-    if (stop || !m.isConnected) return;
-    const id = ids[n], t = info[id] && info[id].type;
-    if (mode === 'nopdf' && t === 'application/pdf') { skipped++; continue; }
-    say('Adding pictures and PDFs: ' + (n + 1) + ' of ' + ids.length + (k > 1 ? ' (part ' + k + ')' : '') + '…');
-    let b = null; try { const r = await fetch(BLOB(id)); if (r.ok) b = await r.blob(); } catch (e) {}
-    if (!b || !b.size) continue;
-    const type = b.type || t || 'application/octet-stream';
-    if (mode === 'nopdf' && type === 'application/pdf') { skipped++; continue; }
-    if (size && size + b.size > PART) { if (!(await flush(false))) break; k++; zip = new JSZip(); cur = meta(k); size = 0; }
-    zip.file('files/' + id, b, { binary: true }); cur.files[id] = type; size += b.size; files++;
+  const progress = () => { say('Downloading pictures and PDFs: ' + done + ' of ' + want.length + (total ? ' (' + MB(bytes) + ' of ' + MB(total) + ')' : '') + (k > 1 ? ' · part ' + k : '') + '…'); bar(total ? bytes / total : done / Math.max(1, want.length)); };
+  progress();
+  const GROUP = 16;
+  for (let g = 0; g < want.length && !gone(); g += GROUP) {
+    const group = want.slice(g, g + GROUP), got = new Array(group.length);
+    await pool(group, 8, async (id, x) => { got[x] = await fetchOne(id); done++; if (got[x]) bytes += got[x].size; progress(); });
+    if (gone()) break;
+    for (let x = 0; x < group.length; x++) {
+      const id = group[x], b = got[x]; if (!b || !b.size) { failed++; continue; }
+      const type = b.type || (info[id] && info[id].type) || 'application/octet-stream';
+      if (mode === 'nopdf' && type === 'application/pdf') continue;
+      if (size && size + b.size > PART) { bar(null); if (!(await flush(false))) break; k++; zip = new JSZip(); cur = meta(k); size = 0; progress(); }
+      zip.file('files/' + id, b, { binary: true }); cur.files[id] = type; size += b.size; files++;
+    }
   }
-  if (!stop) await flush(true);
+  bar(null);
+  if (!gone()) await flush(true);
   if (!m.isConnected) return;
-  if (!saved.length) { m.remove(); return; }
-  say((stop ? 'Stopped after ' : 'Done: ') + saved.length + ' file' + (saved.length === 1 ? '' : 's') + ' saved, with ' + notes + ' note' + (notes === 1 ? '' : 's') + ' and ' + files + ' picture' + (files === 1 ? '' : 's') + '/PDF' + (files === 1 ? '' : 's') + (skipped ? ' (' + skipped + ' PDF' + (skipped === 1 ? '' : 's') + ' left out)' : '') + '.');
-  ch.innerHTML = '<div class="hint">' + saved.map(esc).join('<br>') + '</div><div class="hint" style="margin-top:4px">To open them on the website: <b>Export → Restore from a backup file</b>, and pick ' + (saved.length > 1 ? '<b>all ' + saved.length + ' files at once</b>' : 'this file') + '.</div>';
+  if (!saved.length) { say('Nothing was saved.'); }
+  else say((stop ? 'Stopped after ' : 'Done: ') + pl(saved.length, 'file') + ' saved, with ' + pl(notes, 'note') + ' and ' + files + ' pictures/PDFs' + (failed ? ' (' + failed + ' couldn’t be downloaded and are missing)' : '') + '.');
+  if (saved.length) ch.innerHTML = '<div class="hint">' + saved.map(esc).join('<br>') + '</div><div class="hint" style="margin-top:4px">To open them on the website: <b>Export → Restore from a backup file</b>, and pick ' + (saved.length > 1 ? '<b>all ' + saved.length + ' files at once</b>' : 'this file') + '.</div>';
   const c = m.querySelector('[data-x="cancel"]'); c.textContent = 'Close'; c.removeAttribute('data-x'); c.onclick = () => m.remove();
 }
 window.__nbBackupFile = backupNotebookFile;
