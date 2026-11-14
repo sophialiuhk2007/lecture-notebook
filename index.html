@@ -16340,26 +16340,74 @@ async function saveFile(name, data) {
 // "Restore from a backup file" reads, so notes move from here to the website (or to another account's copy)
 async function backupNotebookFile() {
   if (Store.mode !== 'db' || !Store.db) { toast('Nothing to back up here yet'); return; }
-  toast('Packing your notebook…');
-  const out = { app: 'lecture-notebook', v: 1, saved: now(), from: window.__web ? 'web' : 'claude.ai', docs: {}, blobs: {} };
+  const PART = 250 * 1024 * 1024; // each .zip at most about this (one big PDF may make a part bigger)
+  const m = modal('<div style="width:min(460px,calc(100vw - 48px));font:13px var(--f-ui)"><b>⤓ Back up whole notebook</b>' +
+    '<p class="hint" data-bk="msg" style="margin:6px 0 0">Looking through your notebook…</p><div data-bk="ch" style="display:flex;flex-direction:column;gap:6px;margin-top:10px"></div>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px"><button class="btn" data-x="cancel">Cancel</button></div></div>');
+  let stop = false; m.querySelector('[data-x="cancel"]').addEventListener('click', () => { stop = true; });
+  const say = (t) => { const e = m.querySelector('[data-bk="msg"]'); if (e) e.textContent = t; };
+  const MB = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n < 1e6 ? 'under 1 MB' : Math.round(n / 1e6) + ' MB';
+  const docs = {};
   const col = async (p) => { try { return (await Store.db.collection(p).get()).docs.map(d => [d.id, plainData(d)]); } catch (e) { return []; } };
-  for (const [id, m] of await col('docs')) {
-    if (m) out.docs['docs/' + id] = m;
-    for (const sub of ['blocks', 'inkx', 'chat']) for (const [k, v] of await col('docs/' + id + '/' + sub)) if (v != null) out.docs['docs/' + id + '/' + sub + '/' + k] = v;
+  for (const [id, mm] of await col('docs')) {
+    if (stop) return;
+    if (mm) docs['docs/' + id] = mm;
+    for (const sub of ['blocks', 'inkx', 'chat']) for (const [k, v] of await col('docs/' + id + '/' + sub)) if (v != null) docs['docs/' + id + '/' + sub + '/' + k] = v;
   }
   for (const [key, c] of await col('courses')) {
-    if (c) out.docs['courses/' + key] = c;
-    for (const [k, v] of await col('courses/' + key + '/ann')) if (v != null) out.docs['courses/' + key + '/ann/' + k] = v;
+    if (c) docs['courses/' + key] = c;
+    for (const [k, v] of await col('courses/' + key + '/ann')) if (v != null) docs['courses/' + key + '/ann/' + k] = v;
   }
-  // the pictures and PDFs the notes and readings use (stored files have 32-character ids)
-  const ids = new Set((JSON.stringify(out.docs).match(/"[0-9a-f]{32}"/g) || []).map(x => x.slice(1, -1)));
-  let files = 0;
-  for (const id of ids) {
-    try { const r = await fetch(BLOB(id)); if (!r.ok) continue; const b = await r.blob(); if (!b.size) continue; out.blobs[id] = { type: b.type || 'application/octet-stream', data: await Drive.b64(b) }; files++; } catch (e) {}
+  const notes = Object.keys(docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
+  // the pictures and PDFs the notes and readings use (stored files have 32-character ids); their sizes, when the server says
+  const ids = [...new Set((JSON.stringify(docs).match(/"[0-9a-f]{32}"/g) || []).map(x => x.slice(1, -1)))];
+  const info = {}; let known = 0;
+  say('Looking through ' + ids.length + ' pictures and PDFs…');
+  for (let k = 0; k < ids.length; k += 8) {
+    if (stop || !m.isConnected) return;
+    await Promise.all(ids.slice(k, k + 8).map(async id => { const hi = window.__blobInfo && window.__blobInfo(id); if (hi) { info[id] = hi; known++; return; } try { const r = await fetch(BLOB(id), { method: 'HEAD' }); const n = +r.headers.get('content-length'); if (r.ok && n) { info[id] = { size: n, type: (r.headers.get('content-type') || '').split(';')[0] }; known++; } } catch (e) {} }));
   }
-  const notes = Object.keys(out.docs).filter(k => /^docs\/[^/]+$/.test(k)).length;
-  const ok = await saveFile('lecture-notebook-backup-' + now().slice(0, 10) + '.json', new Blob([JSON.stringify(out)], { type: 'application/json' }));
-  if (ok) toast('Backed up ' + notes + ' note' + (notes === 1 ? '' : 's') + ' and ' + files + ' picture' + (files === 1 ? '' : 's') + ' / PDF' + (files === 1 ? '' : 's') + ' — on the website: Export → Restore from a backup file');
+  const all = Object.values(info).reduce((a, x) => a + x.size, 0), pdf = Object.values(info).filter(x => x.type === 'application/pdf').reduce((a, x) => a + x.size, 0);
+  const sized = known === ids.length;
+  say(notes + ' note' + (notes === 1 ? '' : 's') + ', ' + ids.length + ' picture' + (ids.length === 1 ? '' : 's') + ' and PDF' + (ids.length === 1 ? '' : 's') + (sized ? ' (' + MB(all) + ')' : '') + '. What should the backup include?');
+  const parts = (n) => Math.max(1, Math.ceil(n / PART));
+  const ch = m.querySelector('[data-bk="ch"]');
+  ch.innerHTML = '<button class="btn go" data-bk="all" style="text-align:left;padding:8px 12px">Everything<br><small style="opacity:.85">notes, handwriting, pictures and course PDFs' + (sized ? ' · ' + MB(all) + (parts(all) > 1 ? ' in about ' + parts(all) + ' .zip files' : '') : ' · big notebooks are saved as several .zip files') + '</small></button>' +
+    '<button class="btn" data-bk="nopdf" style="text-align:left;padding:8px 12px">Without the PDFs<br><small class="hint">notes, handwriting and pictures' + (sized ? ' · ' + MB(all - pdf) : '') + ' — add the readings again later</small></button>';
+  const mode = await new Promise(res => { ch.addEventListener('click', e => { const b = e.target.closest('[data-bk]'); if (b) res(b.dataset.bk); }); m.querySelector('[data-x="cancel"]').addEventListener('click', () => res(null)); });
+  if (!mode || stop) return;
+  ch.innerHTML = '';
+  const day = now().slice(0, 10), set = uid('bk');
+  const meta = (k) => ({ app: 'lecture-notebook', v: 2, set, part: k, saved: now(), from: window.__web ? 'web' : 'claude.ai', files: {} });
+  let k = 1, zip = new JSZip(), cur = meta(1), size = 0, files = 0, skipped = 0; const saved = [];
+  zip.file('notebook.json', JSON.stringify({ app: 'lecture-notebook', v: 2, set, saved: now(), from: cur.from, docs }), { compression: 'DEFLATE' });
+  const flush = async (last) => {
+    zip.file('backup.json', JSON.stringify(Object.assign(cur, { last: !!last })));
+    say('Packing part ' + k + '…');
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+    const name = 'lecture-notebook-backup-' + day + (last && k === 1 ? '' : '-part' + k) + '.zip';
+    say('Saving ' + name + ' (' + MB(blob.size) + ')…');
+    const ok = await saveFile(name, blob); if (!ok) { stop = true; return false; }
+    saved.push(name); return true;
+  };
+  for (let n = 0; n < ids.length; n++) {
+    if (stop || !m.isConnected) return;
+    const id = ids[n], t = info[id] && info[id].type;
+    if (mode === 'nopdf' && t === 'application/pdf') { skipped++; continue; }
+    say('Adding pictures and PDFs: ' + (n + 1) + ' of ' + ids.length + (k > 1 ? ' (part ' + k + ')' : '') + '…');
+    let b = null; try { const r = await fetch(BLOB(id)); if (r.ok) b = await r.blob(); } catch (e) {}
+    if (!b || !b.size) continue;
+    const type = b.type || t || 'application/octet-stream';
+    if (mode === 'nopdf' && type === 'application/pdf') { skipped++; continue; }
+    if (size && size + b.size > PART) { if (!(await flush(false))) break; k++; zip = new JSZip(); cur = meta(k); size = 0; }
+    zip.file('files/' + id, b, { binary: true }); cur.files[id] = type; size += b.size; files++;
+  }
+  if (!stop) await flush(true);
+  if (!m.isConnected) return;
+  if (!saved.length) { m.remove(); return; }
+  say((stop ? 'Stopped after ' : 'Done: ') + saved.length + ' file' + (saved.length === 1 ? '' : 's') + ' saved, with ' + notes + ' note' + (notes === 1 ? '' : 's') + ' and ' + files + ' picture' + (files === 1 ? '' : 's') + '/PDF' + (files === 1 ? '' : 's') + (skipped ? ' (' + skipped + ' PDF' + (skipped === 1 ? '' : 's') + ' left out)' : '') + '.');
+  ch.innerHTML = '<div class="hint">' + saved.map(esc).join('<br>') + '</div><div class="hint" style="margin-top:4px">To open them on the website: <b>Export → Restore from a backup file</b>, and pick ' + (saved.length > 1 ? '<b>all ' + saved.length + ' files at once</b>' : 'this file') + '.</div>';
+  const c = m.querySelector('[data-x="cancel"]'); c.textContent = 'Close'; c.removeAttribute('data-x'); c.onclick = () => m.remove();
 }
 window.__nbBackupFile = backupNotebookFile;
 async function exportZip(opt) {
@@ -16406,7 +16454,7 @@ $('exportBtn').onclick = () => {
     { html: (state.showResolved ? 'Hide' : 'Show') + ' resolved comments', fn: () => { state.showResolved = !state.showResolved; renderAll(); } },
     { sep: 1 },
     { html: 'Help & shortcuts<small>? or ' + (isMac ? '⌘/' : 'Ctrl+/') + '</small>', fn: () => toggleHelp(true) }
-  ].concat(window.__web ? window.__web.menu() : [{ sep: 1 }, { html: '⤓ Back up whole notebook to a file<small>everything — open it on the website or another account</small>', fn: backupNotebookFile }, { html: '⚙ Claude model…<small>' + esc(chosenModelLabel()) + '</small>', fn: openModelChoice }]));
+  ].concat(window.__web ? window.__web.menu() : [{ sep: 1 }, { html: '⤓ Back up whole notebook to a file<small>.zip — open it on the website or another account</small>', fn: backupNotebookFile }, { html: '⚙ Claude model…<small>' + esc(chosenModelLabel()) + '</small>', fn: openModelChoice }]));
 };
 
 // phone / small iPad: the notes drawer sits over a dim backdrop; a tap on it only closes the drawer (it doesn't reach the page underneath)
