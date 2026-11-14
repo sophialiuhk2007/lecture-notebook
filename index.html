@@ -1512,7 +1512,8 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   // ---------------------------------------------------------------- first visit: two demo notes
   async function seed() {
     const t = new Date().toISOString(); const put2 = async (p, v) => { mem.set(p, freeze(v)); index(p, true); await put('docs', p, v); };
-    const d1 = 'demo-welcome', d2 = 'demo-ink';
+    // each browser's demo notes get their own ids, so two browsers' copies never count as the same note (Drive backups)
+    const sfx = hexId().slice(0, 8), d1 = 'demo-welcome-' + sfx, d2 = 'demo-ink-' + sfx;
     await put2('docs/' + d1, { id: d1, title: 'Welcome — try the notebook', course: 'Demo', created: t, updated: t });
     const B = [
       ['h2', 'Typing math the easy way'],
@@ -1525,7 +1526,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       ['h2', 'Handwriting'],
       ['p', 'Open “Handwriting demo” in the sidebar to write with a stylus or mouse, or press ✎ at the top for scratch paper next to your notes.'],
     ];
-    let pos = 1024; for (const [type, text, title] of B) { const id = 'b' + d1.slice(5) + pos; const b = { id, type: type.startsWith('box:') ? 'box' : type, text, pos, created: t }; if (type.startsWith('box:')) { b.kind = type.slice(4); b.title = title; } if (pos === 1024 * 6) b.comments = [{ id: 'c1', quote: 'comment', text: 'Comments sit in the margin. Reply, resolve, or ask Claude from here.', who: 'me', created: t, replies: [] }]; await put2('docs/' + d1 + '/blocks/' + id, b); pos += 1024; }
+    let pos = 1024; for (const [type, text, title] of B) { const id = 'b' + d1.slice(5).replace(/-/g, '') + pos; const b = { id, type: type.startsWith('box:') ? 'box' : type, text, pos, created: t }; if (type.startsWith('box:')) { b.kind = type.slice(4); b.title = title; } if (pos === 1024 * 6) b.comments = [{ id: 'c1', quote: 'comment', text: 'Comments sit in the margin. Reply, resolve, or ask Claude from here.', who: 'me', created: t, replies: [] }]; await put2('docs/' + d1 + '/blocks/' + id, b); pos += 1024; }
     await put2('docs/' + d2, { id: d2, title: 'Handwriting demo', course: 'Demo', created: t, updated: t, kind: 'ink', bg: 'lines' });
     await put2('docs/' + d2 + '/blocks/bink1', { id: 'bink1', type: 'page', text: '', pos: 1024, created: t, ink: { w: 850, h: 1100, bg: 'lines', strokes: [], shapes: [] } });
     try { localStorage.setItem('nb.last', d1); } catch (e) {}
@@ -13053,6 +13054,11 @@ const Drive = {
       const prev = this.cfg.files[docId];
       if (!manual && prev && prev.sig === sig) { this.status = 'ok'; return true; }
       await this.ensureFolder();
+      if (!prev) { // first backup of this note from this browser: don't replace another browser's copy of it
+        const base0 = this.baseOf(m), t0 = base0 + ' [' + docId.slice(-6) + '].notebook.json';
+        const there = (this._list || await this.folderFiles()).some(x => x.title === t0 || x.title === base0 + '.notebook.json');
+        if (there) { this.status = this.cfg.auto ? 'ok' : 'off'; return null; }
+      }
       // images (each uploaded once)
       const imgs = {};
       for (const b of blocks) {
@@ -13102,11 +13108,13 @@ const Drive = {
       let files; try { files = await this.folderFiles(); } catch (e) { this.status = 'error'; this.msg = this.errText(e); this.render(); if (manual) toast(this.msg); return; }
       this._list = files;
       const docs = [...state.docs.values()].filter(d => !d.trashed && !d.example);
-      const todo = [];
+      const todo = []; this.foreign = [];
       for (const d of docs) {
         const title = this.baseOf(d) + ' [' + d.id.slice(-6) + '].notebook.json', old = this.baseOf(d) + '.notebook.json';
         const mine = files.filter(f => f.title === title || f.title === old).sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''));
         const newest = mine[0];
+        // a backup this browser never made or loaded: another browser's copy of this note — never replace it from here
+        if (newest && !this.cfg.files[d.id]) { this.foreign.push(d.id); continue; }
         const stale = !newest || newest.title !== title || (d.updated && new Date(d.updated).getTime() > new Date(newest.modifiedTime || 0).getTime() + 2000);
         if (stale) todo.push(d);
         else if (mine.length > 1) { for (const f of mine.slice(1)) { try { await this.call('trash_file', { fileId: f.id }); } catch (e) {} } }
@@ -13136,7 +13144,8 @@ const Drive = {
           : this.failed.length + ' of ' + todo.length + ' note' + (todo.length > 1 ? 's' : '') + ' couldn’t be backed up: ' + this.failed[0].why;
         if (!stop) { clearTimeout(this.timer); this.failed.forEach(f => this.dirty.add(f.id)); this.timer = setTimeout(() => this.flush(), 120000); }
       }
-      if (manual) toast(this.failed.length ? this.msg : done ? 'Backed up ' + done + ' note' + (done > 1 ? 's' : '') + ' — everything is in Google Drive' : 'Everything is already backed up in Google Drive');
+      const nf = this.foreign.length, fmsg = nf ? ' · ' + nf + ' note' + (nf > 1 ? 's here differ' : ' here differs') + ' from a copy another browser backed up — Load from Drive brings those in' : '';
+      if (manual) toast(this.failed.length ? this.msg : (done ? 'Backed up ' + done + ' note' + (done > 1 ? 's' : '') + ' to Google Drive' : 'Everything is already backed up in Google Drive') + fmsg);
     } finally { this._list = null; this.syncing = false; this.progress = ''; this.render(); }
   },
   async backupAll(manual) { return this.syncAll(manual); },
@@ -13184,19 +13193,21 @@ const Drive = {
     let files = [];
     try { files = await this.list(); } catch (e) { m.querySelector('.drlist').innerHTML = '<p class="hint" style="color:var(--k-warn)">' + esc(this.errText(e)) + '</p>'; return; }
     const missing = files.filter(f => !this.localFor(f));
-    m.querySelector('.drlist').innerHTML = files.length ? (missing.length > 1 ? '<div style="margin:0 0 8px"><button class="btn go" data-dl="all">Bring back all ' + missing.length + ' notes that aren’t here</button></div>' : '') +
-      files.map((f, k) => { const loc = this.localFor(f); return '<div class="vrow"><b>' + esc(String(f.title || '').replace(/( \[\w{6}\])?\.notebook\.json$/, '')) + '</b><span class="hint">' + esc(fmtDate(f.modifiedTime)) + (loc ? ' · you have this note' : '') + '</span><span class="grow"></span>' + (loc ? '<button class="btn" data-dl="copy" data-k="' + k + '">Load as a copy</button><button class="btn go" data-dl="replace" data-k="' + k + '">Restore this version</button>' : '<button class="btn go" data-dl="add" data-k="' + k + '">Add to my notes</button>') + '</div>'; }).join('')
+    const theirs = files.filter(f => { const id = this.localFor(f); return id && !this.cfg.files[id]; }); // here, but this browser never backed it up or loaded it
+    const nAll = missing.length + theirs.length;
+    m.querySelector('.drlist').innerHTML = files.length ? (nAll > 1 || theirs.length ? '<div style="margin:0 0 8px"><button class="btn go" data-dl="all">Bring back all ' + nAll + ' note' + (nAll > 1 ? 's' : '') + ' from Drive</button>' + (theirs.length ? '<p class="hint" style="margin:6px 0 0">' + theirs.length + ' of them ' + (theirs.length > 1 ? 'are' : 'is') + ' also here in a different copy (e.g. a demo note); the copy here is saved to Version history first.</p>' : '') + '</div>' : '') +
+      files.map((f, k) => { const loc = this.localFor(f); return '<div class="vrow"><b>' + esc(String(f.title || '').replace(/( \[[\w-]{6}\])?\.notebook\.json$/, '')) + '</b><span class="hint">' + esc(fmtDate(f.modifiedTime)) + (loc ? (this.cfg.files[loc] ? ' · you have this note' : ' · a different copy is here') : '') + '</span><span class="grow"></span>' + (loc ? '<button class="btn" data-dl="copy" data-k="' + k + '">Load as a copy</button><button class="btn go" data-dl="replace" data-k="' + k + '">Restore this version</button>' : '<button class="btn go" data-dl="add" data-k="' + k + '">Add to my notes</button>') + '</div>'; }).join('')
       : '<p class="hint">No backups found yet. Turn on “Back up automatically” or click “Back up now”.</p>';
     m.addEventListener('click', async e => {
       const a = e.target.closest('[data-dl]'); if (!a) return; a.disabled = true; const old = a.textContent; a.textContent = 'Loading…';
       try {
-        if (a.dataset.dl === 'all') { let n = 0; for (const f of missing) { await this.importBackup(await this.fetchBackup(f.id), 'add'); n++; } m.remove(); toast('Brought back ' + n + ' notes from Google Drive'); return; }
-        const f = files[+a.dataset.k]; const j = await this.fetchBackup(f.id); const id = await this.importBackup(j, a.dataset.dl); m.remove(); openDoc(id);
+        if (a.dataset.dl === 'all') { let n = 0; for (const f of missing) { await this.importBackup(await this.fetchBackup(f.id), 'add', f.id); n++; } for (const f of theirs) { await this.importBackup(await this.fetchBackup(f.id), 'replace', f.id); n++; } m.remove(); toast('Brought back ' + n + ' note' + (n > 1 ? 's' : '') + ' from Google Drive'); return; }
+        const f = files[+a.dataset.k]; const j = await this.fetchBackup(f.id); const id = await this.importBackup(j, a.dataset.dl, f.id); m.remove(); openDoc(id);
         toast(a.dataset.dl === 'replace' ? 'Restored from Google Drive — your previous version is in Version history' : 'Loaded from Google Drive');
       } catch (er) { a.disabled = false; a.textContent = old; toast(er && er.code ? this.errText(er) : 'That file couldn’t be loaded (' + ((er && er.message) || 'error') + ')'); }
     });
   },
-  localFor(f) { for (const [id, x] of Object.entries(this.cfg.files)) if (x.fileId === f.id && state.docs.has(id) && !state.docs.get(id).trashed) return id; const mm = String(f.title || '').match(/\[(\w{6})\]\.notebook\.json$/); if (mm) for (const id of state.docs.keys()) if (id.slice(-6) === mm[1] && !state.docs.get(id).trashed) return id; return null; },
+  localFor(f) { for (const [id, x] of Object.entries(this.cfg.files)) if (x.fileId === f.id && state.docs.has(id) && !state.docs.get(id).trashed) return id; const mm = String(f.title || '').match(/\[([\w-]{6})\]\.notebook\.json$/); if (mm) for (const id of state.docs.keys()) if (id.slice(-6) === mm[1] && !state.docs.get(id).trashed) return id; return null; },
   async fixImages(blocks, images) {
     for (const b of blocks) {
       if (!b.img) continue;
@@ -13208,7 +13219,7 @@ const Drive = {
       }
     }
   },
-  async importBackup(j, how) {
+  async importBackup(j, how, fileId) {
     const blocks = j.blocks.map(b => Object.assign({}, b));
     await this.fixImages(blocks, j.images);
     let meta = Object.assign({}, j.meta); const existing = state.docs.get(meta.id);
@@ -13221,6 +13232,7 @@ const Drive = {
     }
     state.docs.set(meta.id, meta); Store.saveDoc(meta);
     for (const b of blocks) Store.saveBlock(meta.id, b, 0);
+    if (fileId && how !== 'copy' && !(how === 'add' && existing)) { this.cfg.files[meta.id] = { fileId, sig: null, at: now() }; this.saveCfg(); }
     if (Store.mode !== 'db' && Store.local.docs[meta.id]) { Store.local.docs[meta.id].blocks = Object.fromEntries(blocks.map(b => [b.id, clone(b)])); Store.persist(); }
     if (meta.id === state.docId) { const id = meta.id; state.docId = null; openDoc(id); }
     renderSide(); return meta.id;
