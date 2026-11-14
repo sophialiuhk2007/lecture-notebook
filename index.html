@@ -1162,27 +1162,44 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     anthropic: { name: 'Claude', co: 'Anthropic', key: 'nb.web.anthropicKey', model: 'nb.web.model', def: 'claude-opus-5-5', ph: 'sk-ant-…',
       keyUrl: 'https://console.anthropic.com/settings/keys', keySite: 'console.anthropic.com → API keys', sub: 'A claude.ai Pro/Max subscription' },
     openai: { name: 'OpenAI', co: 'OpenAI', key: 'nb.web.openaiKey', model: 'nb.web.oaModel', def: '', ph: 'sk-…',
-      keyUrl: 'https://platform.openai.com/api-keys', keySite: 'platform.openai.com → API keys', sub: 'A ChatGPT Plus/Pro subscription' },
+      keyUrl: 'https://platform.openai.com/api-keys', keySite: 'platform.openai.com → API keys', sub: 'A ChatGPT Plus/Pro subscription',
+      oa: true, base: 'https://api.openai.com/v1/', auth: (k) => ({ Authorization: 'Bearer ' + k }) },
+    // Harvard's HUIT API Portal: OpenAI behind Harvard's gateway (the free Community Developer tier included). The portal shows
+    // a Key and a Secret for your app; requests carry the Key in an "api-key" header (the Secret isn't used).
+    harvard: { name: 'Harvard OpenAI', co: 'Harvard’s HUIT API gateway', key: 'nb.web.huitKey', model: 'nb.web.huitModel', def: '', ph: 'The Key from the HUIT API Portal (not the Secret)',
+      keyUrl: 'https://portal.apis.huit.harvard.edu/', keySite: 'portal.apis.huit.harvard.edu → your app → API Keys', sub: '',
+      oa: true, base: 'https://go.apis.huit.harvard.edu/ais-openai-direct/v1/', auth: (k) => ({ 'api-key': k }),
+      fallbackModels: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1', 'o4-mini'] },
   };
-  const provider = () => ls.get(PROV) === 'openai' ? 'openai' : 'anthropic';
+  const provider = () => { const v = ls.get(PROV); return P[v] ? v : 'anthropic'; };
   const getKey = (pv) => ls.get(P[pv || provider()].key);
   const chosenModel = (pv) => ls.get(P[pv || provider()].model) || P[pv || provider()].def;
-  const API = 'https://api.anthropic.com/v1/', OA = 'https://api.openai.com/v1/';
+  const API = 'https://api.anthropic.com/v1/';
   const hdrs = (key, beta) => Object.assign({ 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json', 'anthropic-dangerous-direct-browser-access': 'true' }, beta ? { 'anthropic-beta': beta } : {});
-  const oaHdrs = (key) => ({ Authorization: 'Bearer ' + key, 'content-type': 'application/json' });
+  const oaHdrs = (pv, key) => Object.assign({ 'content-type': 'application/json' }, P[pv].auth(key));
+  // the gateway's "this key may not use this" (e.g. access to the OpenAI API not approved yet)
+  // Harvard's gateway sends its "no" without the header that lets a web page read it, so a refusal looks like a network error
+  const GW_MSG = 'Harvard’s gateway turned the request down (it doesn’t tell web pages why). Usually the Key is wrong (paste the Key, not the Secret), or your app’s access to the OpenAI API isn’t approved yet — the portal shows “Partially active” until it is.';
+  const gwDenied = (t) => /Invalid ApiKey|FailedToResolveAPIKey|InvalidApiKeyForGivenResource|not approved/i.test(t || '');
   // models that answer chat (not speech, images, embeddings, search…); dated snapshots left out to keep the list short
   const OA_CHAT = (id) => /^(gpt-|o\d|chatgpt-)/.test(id) && !/(audio|realtime|tts|transcribe|search|image|embedding|instruct|codex|moderation|computer-use|-\d{4}-\d{2}-\d{2}$)/.test(id);
   async function listModels(pv, key) {
-    if (pv === 'openai') {
-      let r; try { r = await fetch(OA + 'models', { headers: oaHdrs(key) }); } catch (e) { throw { code: 'network' }; }
-      if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? 'bad_key' : 'upstream_error', message: await r.text().catch(() => '') };
-      const j = await r.json(); return (j.data || []).filter(m => OA_CHAT(m.id)).sort((a, b) => (b.created || 0) - (a.created || 0)).map(m => ({ id: m.id, name: m.id }));
+    if (P[pv].oa) {
+      let r; try { r = await fetch(P[pv].base + 'models', { headers: oaHdrs(pv, key) }); } catch (e) { if (!P[pv].fallbackModels) throw { code: 'network' }; r = { ok: false, status: 0, text: async () => '' }; } // (Harvard: an unreadable refusal — check with a chat request below)
+      if (r.ok) { const j = await r.json().catch(() => ({})); const ms = (j.data || []).filter(m => OA_CHAT(m.id)).sort((a, b) => (b.created || 0) - (a.created || 0)).map(m => ({ id: m.id, name: m.id })); if (ms.length || !P[pv].fallbackModels) return ms; }
+      const t = r.ok ? '' : await r.text().catch(() => '');
+      if (!P[pv].fallbackModels) throw { code: r.status === 401 || r.status === 403 ? 'bad_key' : 'upstream_error', message: t };
+      // a gateway that doesn't list models: check the key with a one-word answer instead, then offer the usual models
+      const m0 = P[pv].fallbackModels[0];
+      let c; try { c = await fetch(P[pv].base + 'chat/completions', { method: 'POST', headers: oaHdrs(pv, key), body: JSON.stringify({ model: m0, messages: [{ role: 'user', content: 'Reply with OK.' }], max_completion_tokens: 5 }) }); } catch (e) { throw { code: navigator.onLine === false ? 'network' : 'gw_opaque' }; }
+      if (!c.ok) { const ct = await c.text().catch(() => ''); throw { code: c.status === 401 || c.status === 403 ? 'bad_key' : 'upstream_error', message: ct, gw: gwDenied(ct) }; }
+      return P[pv].fallbackModels.map(id => ({ id, name: id }));
     }
     let r; try { r = await fetch(API + 'models?limit=100', { headers: hdrs(key) }); } catch (e) { throw { code: 'network' }; }
     if (!r.ok) throw { code: r.status === 401 || r.status === 403 ? 'bad_key' : 'upstream_error', message: await r.text().catch(() => '') };
     const j = await r.json(); return (j.data || []).map(m => ({ id: m.id, name: m.display_name || m.id }));
   }
-  const pickDefault = (pv, ms) => pv === 'openai'
+  const pickDefault = (pv, ms) => P[pv].oa
     ? ((ms.find(m => /^gpt-\d/.test(m.id) && !/mini|nano/.test(m.id)) || ms.find(m => /^gpt-\d/.test(m.id)) || ms[0] || {}).id || '')
     : ((ms.find(m => m.id === P.anthropic.def) || ms.find(m => /opus/i.test(m.id)) || ms.find(m => /sonnet/i.test(m.id)) || ms[0] || {}).id || P.anthropic.def);
   const TIER_EFFORT = { quick: 'low', default: 'medium', complex: 'high' };
@@ -1197,7 +1214,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
   }
   const post = async (url, headers, body, o, who) => {
     let r; try { r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: o.signal }); }
-    catch (e) { if (e && e.name === 'AbortError') throw { code: 'aborted' }; throw { code: 'upstream_error', webMsg: 'Couldn’t reach ' + who + ' — check your connection.' }; }
+    catch (e) { if (e && e.name === 'AbortError') throw { code: 'aborted' }; throw { code: 'upstream_error', webMsg: who === P.harvard.name && navigator.onLine !== false ? GW_MSG : 'Couldn’t reach ' + who + ' — check your connection.' }; }
     if (!r.ok) { const t = await r.text().catch(() => ''); throw { status: r.status, body: t }; }
     return r;
   };
@@ -1240,8 +1257,8 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     throw { code: 'upstream_error', message: last && last.body };
   }
   // ---- OpenAI (Chat Completions API)
-  async function streamOA(key, body, o) {
-    const r = await post(OA + 'chat/completions', oaHdrs(key), body, o, 'OpenAI'); let text = '', stop = '';
+  async function streamOA(pv, key, body, o) {
+    const r = await post(P[pv].base + 'chat/completions', oaHdrs(pv, key), body, o, P[pv].name); let text = '', stop = '';
     await readSSE(r, (d) => {
       if (d.error) throw { code: 'upstream_error', message: d.error.message || '' };
       const c = d.choices && d.choices[0]; if (!c) return;
@@ -1250,9 +1267,10 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     });
     return { text, stop };
   }
-  async function sampleOA(key, input, o, effort) {
-    let chosen = chosenModel('openai');
-    if (!chosen) { try { chosen = pickDefault('openai', await listModels('openai', key)); if (chosen) ls.set(P.openai.model, chosen); } catch (e) { if (e.code === 'bad_key') { ls.set(P.openai.key, ''); throw { code: 'not_granted', webMsg: 'Your OpenAI API key was not accepted — reconnect in ⚙ Settings → AI.' }; } throw { code: 'upstream_error', webMsg: 'Couldn’t reach OpenAI — check your connection.' }; } }
+  async function sampleOA(pv, key, input, o, effort) {
+    const PV = P[pv], keyBad = { code: 'not_granted', webMsg: pv === 'harvard' ? 'Harvard’s gateway didn’t accept that key — paste the Key (not the Secret) in ⚙ Settings → AI, and check the portal shows your app’s OpenAI access as approved.' : 'Your OpenAI API key was not accepted — reconnect in ⚙ Settings → AI.' };
+    let chosen = chosenModel(pv);
+    if (!chosen) { try { chosen = pickDefault(pv, await listModels(pv, key)); if (chosen) ls.set(PV.model, chosen); } catch (e) { if (e.code === 'bad_key') throw keyBad; throw { code: 'upstream_error', webMsg: 'Couldn’t reach ' + PV.co + ' — check your connection.' }; } }
     const msgs = plainMsgs(input).map(m => ({ role: m.role, content: m.text }));
     if (o.images && o.images.length) { const last = msgs.filter(m => m.role === 'user').pop(); const parts = [{ type: 'text', text: last.content }]; for (const im of o.images) { if (!(im instanceof Blob)) continue; parts.push({ type: 'image_url', image_url: { url: 'data:' + (IMG_TYPES.includes(im.type) ? im.type : 'image/png') + ';base64,' + (await b64(im)) } }); } last.content = parts; }
     const re = effort === 'xhigh' || effort === 'max' ? 'high' : effort;
@@ -1266,15 +1284,15 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     let last = null;
     for (const body of plans) {
       try {
-        const r = await streamOA(key, body, o);
+        const r = await streamOA(pv, key, body, o);
         return { text: r.text, truncated: r.stop === 'length', modelApplied: chosen };
       } catch (e) {
         if (!e || e.status == null) throw e;
         last = e; const t = String(e.body || '');
-        if (e.status === 401 || e.status === 403) { ls.set(P.openai.key, ''); throw { code: 'not_granted', webMsg: 'Your OpenAI API key was not accepted — reconnect in ⚙ Settings → AI.' }; }
-        if (e.status === 429 && /insufficient_quota|billing|quota/i.test(t)) throw { code: 'upstream_error', webMsg: 'Your OpenAI account is out of credit — add credit at platform.openai.com.' };
+        if (e.status === 401 || e.status === 403) { if (pv !== 'harvard') ls.set(PV.key, ''); throw keyBad; }
+        if (e.status === 429 && /insufficient_quota|billing|quota/i.test(t)) throw { code: 'upstream_error', webMsg: pv === 'harvard' ? 'You’ve used up this period’s allowance on Harvard’s OpenAI access (the Community Developer tier is about $10 a month) — try again later.' : 'Your OpenAI account is out of credit — add credit at platform.openai.com.' };
         if (e.status === 429) throw { code: 'rate_limited', message: t };
-        if (e.status === 404 && /model/i.test(t)) { ls.set(P.openai.model, ''); throw { code: 'upstream_error', webMsg: 'That OpenAI model isn’t available to your key — pick another in ⚙ Settings → AI.' }; }
+        if (e.status === 404 && /model/i.test(t)) { ls.set(PV.model, ''); throw { code: 'upstream_error', webMsg: 'That model isn’t available to your key — pick another in ⚙ Settings → AI.' }; }
         if (e.status === 400) continue; // an option this model doesn't take: try the next plan
         throw { code: 'upstream_error', message: t };
       }
@@ -1285,10 +1303,10 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     o = o || {};
     const pv = provider(), key = getKey(pv); if (!key) throw noKey();
     const effort = ['low', 'medium', 'high', 'xhigh', 'max'].includes(o.effort) ? o.effort : (TIER_EFFORT[o.modelTier] || 'medium');
-    return pv === 'openai' ? sampleOA(key, input, o, effort) : sampleClaude(key, input, o, effort);
+    return P[pv].oa ? sampleOA(pv, key, input, o, effort) : sampleClaude(key, input, o, effort);
   }
   // the notebook's own "Model" pickers (e.g. handwriting → typed notes) list Claude models; with OpenAI they use your OpenAI model
-  W.aiModels = () => provider() === 'openai' ? [['', 'Your OpenAI model (' + (chosenModel('openai') || 'set in ⚙ Settings') + ')']] : null;
+  W.aiModels = () => { const pv = provider(); return P[pv].oa ? [['', 'Your ' + P[pv].name + ' model (' + (chosenModel(pv) || 'set in ⚙ Settings') + ')']] : null; };
   sample.limits = async () => ({ maxInputBytes: 30000000, images: { maxPerCall: 20, maxBytes: 5 * 1024 * 1024, mediaTypes: IMG_TYPES }, modelTiers: ['quick', 'default', 'complex'] });
   sample.json = async (input, o) => { const r = await sample(input, o); const t = r.text.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, ''); try { return JSON.parse(t); } catch (e) { throw { code: 'invalid_json', text: r.text }; } };
 
@@ -1389,9 +1407,10 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       '<div style="display:flex;align-items:center;gap:8px"><h3>⚙ Settings</h3><span style="flex:1"></span><button data-x="close" aria-label="Close">✕</button></div>' +
       '<small>Everything here is stored only in this browser, on this device.</small>' +
       '<div class="sec" data-sec="ai"><h4>✦ AI <span class="st' + (hasKey ? ' on' : '') + '" data-cst>' + (hasKey ? PV.name + ' connected' : 'Not connected') + '</span></h4>' +
-      '<p>Ask, explanations, comment replies and handwriting → typed notes use <b>your own</b> API key, from Claude or OpenAI. The key stays in this browser and is sent only to ' + PV.co + '; usage is billed to your ' + PV.co + ' account.</p>' +
-      '<div class="prov" role="radiogroup" aria-label="AI provider">' + ['anthropic', 'openai'].map(k => '<label class="ck"><input type="radio" name="nbprov" value="' + k + '"' + (k === pv ? ' checked' : '') + '> ' + (k === 'anthropic' ? 'Claude <span class="hint" style="display:inline">(Anthropic)</span>' : 'OpenAI <span class="hint" style="display:inline">(GPT models)</span>') + (getKey(k) ? ' <span class="st on">key saved</span>' : '') + '</label>').join('') + '</div>' +
-      '<small style="margin-top:6px">Create a key at <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">' + PV.keySite + '</a>. (' + PV.sub + ' can’t be used by other websites — the API is billed separately.)</small>' +
+      '<p>Ask, explanations, comment replies and handwriting → typed notes use <b>your own</b> API key: Claude, OpenAI, or OpenAI through Harvard. The key stays in this browser and is sent only to ' + PV.co + (pv === 'harvard' ? '; usage counts against your Harvard API allowance.' : '; usage is billed to your ' + PV.co + ' account.') + '</p>' +
+      '<div class="prov" role="radiogroup" aria-label="AI provider">' + ['anthropic', 'openai', 'harvard'].map(k => '<label class="ck"><input type="radio" name="nbprov" value="' + k + '"' + (k === pv ? ' checked' : '') + '> ' + (k === 'anthropic' ? 'Claude <span class="hint" style="display:inline">(Anthropic)</span>' : k === 'openai' ? 'OpenAI <span class="hint" style="display:inline">(GPT models)</span>' : 'Harvard OpenAI <span class="hint" style="display:inline">(HUIT API Portal)</span>') + (getKey(k) ? ' <span class="st on">key saved</span>' : '') + '</label>').join('') + '</div>' +
+      (pv === 'harvard' ? '<small style="margin-top:6px">In the <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">HUIT API Portal</a>, open your app’s keys and copy the <b>Key</b> (the left column) — not the Secret. Your app needs approved access to the OpenAI API; until then the portal shows “Partially active”.</small>'
+        : '<small style="margin-top:6px">Create a key at <a href="' + PV.keyUrl + '" target="_blank" rel="noopener">' + PV.keySite + '</a>. (' + PV.sub + ' can’t be used by other websites — the API is billed separately.)</small>') +
       '<input data-k="key" type="password" placeholder="' + PV.ph + '" autocomplete="off" spellcheck="false" value="' + (hasKey ? '••••••••••••' : '') + '" aria-label="' + PV.co + ' API key">' +
       '<label style="font-size:12.5px;color:var(--muted,#667)">Model<select data-k="model" aria-label="Model">' + (chosenModel(pv) ? '<option value="' + escH(chosenModel(pv)) + '">' + escH(chosenModel(pv)) + '</option>' : '<option value="">(connect to choose)</option>') + '</select></label>' +
       '<div class="msg" data-k="cmsg"></div><div class="row">' + (hasKey ? '<button data-x="rmkey">Disconnect</button>' : '') + '<button class="go" data-x="savekey">' + (hasKey ? 'Save' : 'Connect ' + PV.name) + '</button></div></div>' +
@@ -1415,12 +1434,13 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       if (a === 'rmkey') { ls.set(PV.key, ''); ls.set(PV.model, ''); d.close(); W.settings(); return; }
       if (a === 'savekey') {
         let k = inp.value.trim(); if (!k || k.startsWith('••')) k = getKey(pv); if (!k) { say(cmsg, 'Paste your ' + PV.co + ' API key first.', 'err'); inp.focus(); return; }
+        if (pv === 'harvard' && /^sk-/.test(k)) { say(cmsg, 'That looks like an ' + (/^sk-ant-/.test(k) ? 'Anthropic' : 'OpenAI') + ' key — for Harvard, paste the Key from the HUIT API Portal, or choose ' + (/^sk-ant-/.test(k) ? 'Claude' : 'OpenAI') + ' above.', 'err'); return; }
         if (pv === 'openai' && /^sk-ant-/.test(k)) { say(cmsg, 'That looks like an Anthropic (Claude) key — choose Claude above, or paste an OpenAI key.', 'err'); return; }
         if (pv === 'anthropic' && /^sk-(proj-|svcacct-)/.test(k)) { say(cmsg, 'That looks like an OpenAI key — choose OpenAI above, or paste an Anthropic key.', 'err'); return; }
         x.disabled = true; say(cmsg, 'Checking the key…');
         try { const ms = await listModels(pv, k); ls.set(PV.key, k); const keep = ms.some(m => m.id === sel.value) ? sel.value : ''; fillModels(ms); if (keep) sel.value = keep; ls.set(PV.model, sel.value || pickDefault(pv, ms));
           d.querySelector('[data-cst]').textContent = PV.name + ' connected'; d.querySelector('[data-cst]').classList.add('on'); inp.value = '••••••••••••'; say(cmsg, 'Connected — using ' + (sel.options[sel.selectedIndex] || {}).text + '.', 'ok'); }
-        catch (er) { say(cmsg, er.code === 'bad_key' ? 'That key was not accepted — check it was copied in full.' : 'Couldn’t reach ' + PV.co + ' — check your connection.', 'err'); }
+        catch (er) { say(cmsg, er.code === 'gw_opaque' ? GW_MSG : er.code === 'bad_key' ? (pv === 'harvard' ? 'Harvard’s gateway didn’t accept that key. Check you copied the Key (not the Secret), and that the portal shows your app’s OpenAI access as approved (not “Partially active”).' : 'That key was not accepted — check it was copied in full.') : 'Couldn’t reach ' + PV.co + ' — check your connection.', 'err'); }
         x.disabled = false; return;
       }
       if (a === 'gin' || a === 'gnow' || a === 'gload') {

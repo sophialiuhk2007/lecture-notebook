@@ -18,17 +18,19 @@ A notebook for math and statistics lectures that runs in the browser: nothing to
 
 Each person who uses the notebook connects **their own** accounts. Everything is stored only in that person's browser.
 
-### AI: Claude or OpenAI
+### AI: Claude, OpenAI, or OpenAI through Harvard
 
 Asking about your notes, explanations, replies in comments, and turning handwriting or PDFs into typed notes call an AI straight from your browser, using **your own API key**. Choose the provider in **⚙ Settings → AI**:
 
-| | Claude (Anthropic) | OpenAI |
-|---|---|---|
-| Get a key | <https://console.anthropic.com/settings/keys> | <https://platform.openai.com/api-keys> |
-| Key looks like | `sk-ant-…` | `sk-…` / `sk-proj-…` |
-| Sent only to | `api.anthropic.com` | `api.openai.com` |
+| | Claude (Anthropic) | OpenAI | Harvard OpenAI (HUIT) |
+|---|---|---|---|
+| Get a key | <https://console.anthropic.com/settings/keys> | <https://platform.openai.com/api-keys> | [HUIT API Portal](https://portal.apis.huit.harvard.edu/): your app's **Key** (not the Secret) |
+| Key looks like | `sk-ant-…` | `sk-…` / `sk-proj-…` | letters and digits, no `sk-` |
+| Sent only to | `api.anthropic.com` | `api.openai.com` | `go.apis.huit.harvard.edu` |
 
 Paste the key, pick a model from the list (it shows the models your key can use), and press **Connect**. Each provider keeps its own key, so you can switch back and forth. Usage is billed to your account with that provider. A claude.ai or ChatGPT subscription can't be used by other websites: the APIs are billed separately.
+
+**Harvard OpenAI** is for Harvard affiliates using the HUIT API Portal (including the free Community Developer tier). Your app's access to the OpenAI API has to be approved first: until then the portal shows the key as “Partially active”, and the gateway turns requests down. The gateway doesn't tell web pages why it refused, so the notebook can only say that it did.
 
 The buttons in the notebook still say “Claude” (✦ Claude, Ask); with OpenAI chosen they use your OpenAI model.
 
