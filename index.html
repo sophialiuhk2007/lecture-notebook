@@ -1221,10 +1221,10 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
     return loadGis().then(() => new Promise((res, rej) => {
       const tc = google.accounts.oauth2.initTokenClient({
         client_id: clientId(), scope: SCOPE,
-        callback: (r) => { if (!r || r.error || !r.access_token) return rej({ code: 'not_granted', webMsg: 'Google Drive access wasn’t granted.' });
+        callback: (r) => { if (!r || r.error || !r.access_token) return rej({ code: 'not_granted', webMsg: 'Google Drive access wasn’t granted' + (r && r.error && r.error !== 'access_denied' ? ' (' + r.error + ')' : '') + '.' });
           if (google.accounts.oauth2.hasGrantedAllScopes && !google.accounts.oauth2.hasGrantedAllScopes(r, SCOPE)) return rej({ code: 'not_granted', webMsg: 'Tick “See, edit, create and delete only the specific Google Drive files you use with this app” to use Drive backup.' });
           tok = { t: r.access_token, exp: Date.now() + (+r.expires_in || 3600) * 1000 }; ls.set(GTOK, JSON.stringify(tok)); ls.set(GON, '1'); res(tok.t); },
-        error_callback: (e) => rej({ code: 'not_granted', webMsg: e && e.type === 'popup_failed_to_open' ? 'The Google sign-in window was blocked — allow pop-ups for this site and try again.' : 'Google sign-in was closed before it finished.' }),
+        error_callback: (e) => rej({ code: 'not_granted', webMsg: e && e.type === 'popup_failed_to_open' ? 'The Google sign-in window was blocked — allow pop-ups for this site and try again.' : 'The Google window closed before access was granted. If it said “Access blocked” or “Error 403: access_denied”, the Google Cloud app is in Testing: add your Google account under Google Auth Platform → Audience → Test users (or publish the app), then try again.' }),
       });
       tc.requestAccessToken({ prompt: ls.get(GON) ? '' : 'consent' });
     }));

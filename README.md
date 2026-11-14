@@ -39,7 +39,7 @@ Google sign-in needs an OAuth client ID that belongs to the website. Create it o
 
 1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (or pick one).
 2. **APIs & Services → Library**: enable the **Google Drive API**.
-3. **APIs & Services → OAuth consent screen**: set up an *External* app (name, support email). Under scopes, add `.../auth/drive.file`. While the app is in *Testing*, only the Google accounts you list as test users can sign in. Publish the app to let anyone sign in. `drive.file` is a non-sensitive scope, so this needs no security review.
+3. **APIs & Services → OAuth consent screen**: set up an *External* app (name, support email). Under scopes, add `.../auth/drive.file`. While the app is in *Testing*, only the Google accounts you list under **Audience → Test users** can sign in. That includes your own account: add it, or Google shows “Access blocked … Error 403: access_denied”. Publish the app to let anyone sign in. `drive.file` is a non-sensitive scope, so this needs no security review.
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID**: type *Web application*, and under **Authorized JavaScript origins** add the site's address, e.g. `https://sophialiuhk2007.github.io` (and `http://localhost:8000` if you test locally).
 5. Put the client ID in [`config.js`](config.js):
 
