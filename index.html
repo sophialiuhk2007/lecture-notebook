@@ -15138,7 +15138,7 @@ const Ann = {
   // ---- the margin of a PDF page (like a typed note's): a card for each comment, next to its mark, following it as the PDF scrolls / zooms
   renderPg(host, list) {
     const want = lsGet('nb.pcmts') !== '0'; const rd = host.closest('.reader'); host.hidden = !want; if (rd.classList.contains('nocm') === want) { rd.classList.toggle('nocm', !want); Panel.syncEp(); } // (the paper column moves: the viewer follows it)
-    let pill = rd.querySelector('.pgshow'); if (!want && !pill) { pill = document.createElement('button'); pill.className = 'pgshow'; pill.dataset.pcb = 'toggle'; pill.title = 'Show comments'; pill.textContent = '💬 Show comments'; rd.appendChild(pill); } else if (want && pill) pill.remove();
+    { const old = rd.querySelector('.pgshow'); if (old) old.remove(); } // (the 💬 pill at the top right shows them again)
     if (!want) return;
     const ae = document.activeElement; const foc = ae && ae.matches && ae.matches('.pcmt textarea') && host.contains(ae) ? { cid: ae.closest('.cmt').dataset.cid, sel: ae.matches('[data-creply]') ? '[data-creply]' : ae.matches('[data-repedit]') ? '[data-repedit]' : '[data-ctext]', a: ae.selectionStart, b: ae.selectionEnd } : null;
     const old = {}; host.querySelectorAll('.pclist .cmt[data-cid]').forEach(c => { old[c.dataset.cid] = c.style.getPropertyValue('--y'); });
