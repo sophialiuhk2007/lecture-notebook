@@ -360,6 +360,7 @@ body.withpanel.tzfix:not(.pz) .sheet,body.tzfix .body.withpanel .sheet{grid-temp
 .fhead:hover button,.docrow:hover button.more,.docrow[aria-current="true"] button.more{opacity:1}
 .fhead button:hover,.docrow button.more:hover{background:var(--line-2);color:var(--ink)}
 .docrow{display:flex;align-items:center;border-radius:7px;margin-left:10px}
+.fhead.fsel,.shead.fsel{background:var(--note-soft);border-radius:7px}.fempty{padding:3px 8px 6px 24px;font:12px var(--f-ui);color:var(--muted)}
 .sec{margin:1px 0 1px 10px}
 .shead{display:flex;align-items:center;gap:4px;padding:2px 4px 2px 4px;border-radius:6px;cursor:pointer;user-select:none}
 .shead:hover{background:var(--panel-2)}.shead.drop{background:var(--note-soft);outline:1px dashed var(--note)}
@@ -6257,6 +6258,8 @@ const Store = {
     const d = this.local.docs[docId]; return d ? Object.values(d.blocks).map(clone) : [];
   },
   async purgeDoc(id) {
+    const k = 'doc:' + id, f = this.failed[k]; if (f) { clearTimeout(f.t); delete this.failed[k]; } // a save still on its way would bring the note back
+    if (this.chains[k]) await this.chains[k].catch(() => {});
     const blocks = await this.blocksOf(id).catch(() => []);
     if (this.mode === 'db') {
       for (const b of blocks) await this.db.doc('docs/' + id + '/blocks/' + b.id).delete().catch(() => {});
@@ -7140,6 +7143,7 @@ function pasteBlocks(afterId, list) {
 
 // ---------------------------------------------------------------- docs
 function openDoc(id) {
+  if (state.sideFolder) { state.sideFolder = null; setTimeout(renderSide, 0); }
   if (state.docId === id) return;
   if (state.courseDoc) commitCourse();
   Store.flushAll(); stopEdit(); clearSel();
@@ -7275,7 +7279,7 @@ function newDoc(course, opts) {
   opts = opts || {};
   const cur = state.docs.get(state.docId);
   course = course !== undefined ? course : ((cur && cur.course) || '');
-  const same = [...state.docs.values()].filter(d => !d.trashed && (d.course || '') === course);
+  const same = [...state.docs.values()].filter(d => !d.trashed && !d.folder && (d.course || '') === course);
   const top = Math.max(0, ...same.map(d => { const k = /\blecture\s+(\d+)/i.exec(d.title || ''); return k ? +k[1] : 0; }));
   const n = top ? top + 1 : same.length + 1; // after the highest "Lecture N" in this course
   const d = new Date();
@@ -7299,8 +7303,38 @@ function trashDocs(ids) {
   });
 }
 function restoreDoc(id) { const m = state.docs.get(id); if (!m) return; delete m.trashed; Store.saveDoc(m); renderSide(); toast('Restored “' + (m.title || 'Untitled') + '”'); }
-async function purgeDoc(id) { state.docs.delete(id); renderSide(); await Store.purgeDoc(id); }
-function liveDocs() { return [...state.docs.values()].filter(d => !d.trashed).sort((a, b) => (b.updated || '').localeCompare(a.updated || '')); }
+// notes being deleted forever stay out of the list until it's done: the deletion removes the note's blocks first and its entry last,
+// and any save meanwhile redraws the list from storage (Sophia, Nov 14: "empty trash, and then quickly the trash will be filled by
+// some lecture"). One cut short (the tab closed) is finished at the next start.
+const PURGING = new Set((() => { try { return JSON.parse(lsGet('nb.purging') || '[]'); } catch (e) { return []; } })());
+function savePurging() { lsSet('nb.purging', JSON.stringify([...PURGING])); }
+async function purgeDoc(id, tries) {
+  PURGING.add(id); savePurging(); if (state.docs.delete(id)) renderSide();
+  try { await Store.purgeDoc(id); PURGING.delete(id); savePurging(); }
+  catch (e) { if ((tries || 0) < 5) setTimeout(() => purgeDoc(id, (tries || 0) + 1), 15000 * ((tries || 0) + 1)); else setSave('warn', 'Couldn’t finish deleting a note (' + ((e && e.code) || 'offline') + ')'); }
+}
+// empty courses and sections (Sophia, Nov 14: making a course or section shouldn't make a lecture): a hidden "folder" entry in the
+// notes list (no blocks, never opened), so renaming a course or section, moving, backups and other devices carry it like a note
+function folderDocs() { return [...state.docs.values()].filter(d => d.folder && !d.trashed); }
+function sectionNames(course) { return [...new Set([...state.docs.values()].filter(d => !d.trashed && (d.course || '') === course && d.section).map(d => d.section))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true })); }
+function makeFolder(course, section) {
+  course = String(course || '').trim(); section = String(section || '').trim(); const g = course || 'No course';
+  const exists = section ? sectionNames(course).includes(section) : courseNames().includes(course);
+  if (!exists) { const m = { id: uid('f'), folder: true, title: '', course, created: now(), updated: now() }; if (section) m.section = section; state.docs.set(m.id, m); Store.saveDoc(m); }
+  state.closed[g] = false; if (section) state.closed['§' + g + '/' + section] = false; lsSet('nb.closed', JSON.stringify(state.closed));
+  state.sideFolder = { course, section }; renderSide();
+  toast(exists ? (section ? 'Section “' + section + '” is already there' : course + ' is already there') : (section ? 'Section “' + section + '” made' : 'Course “' + course + '” made') + ' — + Lecture adds a note to it');
+}
+function dropFolders(course, section) { // section undefined: the whole course
+  folderDocs().filter(d => (d.course || '') === course && (section === undefined || (d.section || '') === section)).forEach(d => purgeDoc(d.id));
+  const f = state.sideFolder; if (f && f.course === course && (section === undefined || f.section === section)) state.sideFolder = null;
+}
+// where + Lecture / ✎ Handwritten / ⤒ LaTeX put a new note: the course or section last clicked in the list, else the note you're in
+function newTarget() {
+  const f = state.sideFolder; if (f) return { course: f.course, section: f.section || '' };
+  const cur = state.docs.get(state.docId); return cur && !cur.trashed && !cur.folder ? { course: cur.course || '', section: cur.section || '' } : { course: '', section: '' };
+}
+function liveDocs() { return [...state.docs.values()].filter(d => !d.trashed && !d.folder).sort((a, b) => (b.updated || '').localeCompare(a.updated || '')); }
 function moveDocToCourse(id, course, section) { const m = state.docs.get(id); if (!m) return; m.course = course; if (section) m.section = section; else delete m.section; Store.saveDoc(m); if (id === state.docId) $('dcourse').value = course; renderSide(); Panel.onDocChange(); }
 async function duplicateDoc(id) {
   const m = state.docs.get(id); if (!m) return;
@@ -7352,29 +7386,31 @@ function renderSide() {
     const docs = liveDocs().filter(d => !q || ((d.title || '') + ' ' + (d.course || '')).toLowerCase().includes(q));
     const groups = new Map();
     for (const d of docs) { const g = d.course || 'No course'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(d); }
+    for (const f of folderDocs()) { const g = f.course || 'No course'; if (!groups.has(g) && (!q || (g + ' ' + (f.section || '')).toLowerCase().includes(q))) groups.set(g, []); } // empty courses
+    const SF = state.sideFolder;
     if (q) for (const d of liveDocs()) { const g = d.course || 'No course'; if (!groups.has(g) && sideReadMatch(g, q)) groups.set(g, []); } // a course whose readings match
     const ae0 = document.activeElement, refocus = ae0 && host.contains(ae0) ? sideKey(ae0) : null;
-    let h = '<div class="newrow"><button class="btn go" id="newLecBtn" title="New typed notes in the current course, titled with today’s date">+ Lecture</button><button class="btn" id="newInkBtn" title="Handwritten notes on pages, for a stylus">✎ Handwritten</button><button class="btn" id="newCourseBtn">+ Course</button><button class="btn" id="importTexBtn" title="Import a LaTeX file (.tex) — e.g. a problem set — as a new note you can work in">⤒ LaTeX</button></div>';
+    let h = '<div class="newrow"><button class="btn go" id="newLecBtn" title="New typed notes, titled with today’s date — in the course or section you clicked in the list, or the one you’re in">+ Lecture</button><button class="btn" id="newInkBtn" title="Handwritten notes on pages, for a stylus">✎ Handwritten</button><button class="btn" id="newCourseBtn">+ Course</button><button class="btn" id="importTexBtn" title="Import a LaTeX file (.tex) — e.g. a problem set — as a new note you can work in">⤒ LaTeX</button></div>';
     const names = [...groups.keys()].sort((a, b) => a === 'No course' ? 1 : b === 'No course' ? -1 : a.localeCompare(b));
     const rowOf = (d) => '<div class="docrow" draggable="true" data-doc="' + esc(d.id) + '"' + (d.id === state.docId && !Panel.page ? ' aria-current="true"' : '') + '><button class="docitem" data-open="' + esc(d.id) + '" title="' + esc((d.title || 'Untitled') + (d.updated ? ' — edited ' + fmtDate(d.updated) : '')) + '"><b>' + (d.kind === 'ink' ? '<span class="inkico" title="Handwritten">✎</span> ' : '') + esc(d.title || 'Untitled') + '</b><span>' + esc(fmtShort(d.updated)) + (d.example ? ' · ex.' : '') + '</span></button><button class="more" data-dm="' + esc(d.id) + '" aria-label="Note options">⋯</button></div>';
     const curDoc = state.docs.get(state.docId) || {};
     for (const g of names) {
       const list = groups.get(g).sort((a, b) => (b.created || '').localeCompare(a.created || ''));
       const curCourse = (curDoc.course || 'No course'); const closed = !q && (state.closed[g] !== undefined ? state.closed[g] : (g !== curCourse && names.length > 1));
-      h += '<div class="folder"><div class="fhead' + (closed ? ' closed' : '') + '" data-course="' + esc(g) + '" tabindex="0" role="button" aria-expanded="' + !closed + '"><span class="tw">▼</span><b>' + esc(g) + '</b><span class="n">' + list.length + '</span><button data-fa="new" title="New lecture in ' + esc(g) + '" aria-label="New lecture">+</button><button data-fa="menu" title="Course options" aria-label="Course options">⋯</button></div>' +
+      h += '<div class="folder"><div class="fhead' + (closed ? ' closed' : '') + (SF && !SF.section && (SF.course || 'No course') === g ? ' fsel' : '') + '" data-course="' + esc(g) + '" tabindex="0" role="button" aria-expanded="' + !closed + '"><span class="tw">▼</span><b>' + esc(g) + '</b><span class="n">' + list.length + '</span><button data-fa="new" title="New lecture in ' + esc(g) + '" aria-label="New lecture">+</button><button data-fa="menu" title="Course options" aria-label="Course options">⋯</button></div>' +
         (closed ? '' : (() => {
           // sections inside a course (like OneNote): notes without a section first, then each section with its notes
           let out = list.filter(d => !d.section).map(rowOf).join('');
-          const secs = [...new Set(list.filter(d => d.section).map(d => d.section))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
+          const secs = [...new Set(list.filter(d => d.section).map(d => d.section).concat(q ? [] : folderDocs().filter(f => (f.course || 'No course') === g && f.section).map(f => f.section)))].sort((x, y) => x.localeCompare(y, undefined, { numeric: true }));
           for (const sname of secs) {
             const sl = list.filter(d => d.section === sname); const key = '§' + g + '/' + sname;
             const sc = !q && (state.closed[key] !== undefined ? state.closed[key] : !(curDoc.section === sname && curCourse === g));
-            out += '<div class="sec"><div class="shead' + (sc ? ' closed' : '') + '" data-course="' + esc(g) + '" data-sec="' + esc(sname) + '" tabindex="0" role="button" aria-expanded="' + !sc + '"><span class="tw">▼</span><b>' + esc(sname) + '</b><span class="n">' + sl.length + '</span><button data-sa="new" title="New page in ' + esc(sname) + '" aria-label="New page">+</button><button data-sa="menu" title="Section options" aria-label="Section options">⋯</button></div>' + (sc ? '' : '<div class="secbody">' + sl.map(rowOf).join('') + '</div>') + '</div>';
+            out += '<div class="sec"><div class="shead' + (sc ? ' closed' : '') + (SF && SF.section === sname && (SF.course || 'No course') === g ? ' fsel' : '') + '" data-course="' + esc(g) + '" data-sec="' + esc(sname) + '" tabindex="0" role="button" aria-expanded="' + !sc + '"><span class="tw">▼</span><b>' + esc(sname) + '</b><span class="n">' + sl.length + '</span><button data-sa="new" title="New page in ' + esc(sname) + '" aria-label="New page">+</button><button data-sa="menu" title="Section options" aria-label="Section options">⋯</button></div>' + (sc ? '' : '<div class="secbody">' + (sl.length ? sl.map(rowOf).join('') : '<div class="fempty">No notes yet</div>') + '</div>') + '</div>';
           }
-          return out + sideReadRows(g, q);
+          const rr = sideReadRows(g, q); return out || rr ? out + rr : '<div class="fempty">No notes yet</div>';
         })()) + '</div>';
     }
-    const trash = [...state.docs.values()].filter(d => d.trashed);
+    const trash = [...state.docs.values()].filter(d => d.trashed && !d.folder);
     if (trash.length) h += '<div class="folder trash"><div class="fhead' + (state.closed.__trash !== false ? ' closed' : '') + '" data-course="__trash" tabindex="0" role="button" aria-expanded="' + (state.closed.__trash === false) + '"><span class="tw">▼</span><b>Trash</b><span class="n">' + trash.length + '</span></div>' +
       (state.closed.__trash !== false ? '' : trash.map(d => '<div class="docrow" data-doc="' + esc(d.id) + '"><button class="docitem" data-restore="' + esc(d.id) + '" title="Restore"><b>' + esc(d.title || 'Untitled') + '</b><span>deleted ' + esc(fmtDate(d.trashed)) + ' · click to restore</span></button><button class="more" data-purge="' + esc(d.id) + '" title="Delete forever" aria-label="Delete forever">✕</button></div>').join('') + '<div style="padding:4px 10px"><button class="lnk muted" id="emptyTrash">Empty trash</button></div>') + '</div>';
     if (q.length >= 2) { h = (docs.length ? '' : '<div class="hint" style="padding:4px 8px">No titles match.</div>') + h + '<div id="ftsHits" class="fts"><div class="hint">Searching inside notes…</div></div>'; }
@@ -7507,7 +7543,7 @@ function inlineInput(anchor, value, cb) {
 function moveMenu(anchor, ids) {
   const docs = ids.map(id => state.docs.get(id)).filter(Boolean); if (!docs.length) return;
   const n = docs.length; const course = docs[0].course || ''; const sameCourse = docs.every(d => (d.course || '') === course);
-  const secs = [...new Set(liveDocs().filter(d => (d.course || '') === course && d.section).map(d => d.section))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const secs = sectionNames(course);
   const go = (c, sec) => { for (const d of docs) { d.course = c; if (sec) d.section = sec; else delete d.section; if (d.id === state.docId) $('dcourse').value = c; } Store.saveDocs(docs); state.sideSel.clear(); renderSide(); Panel.onDocChange(); toast('Moved ' + n + ' note' + (n > 1 ? 's' : '') + (sec ? ' to “' + sec + '”' : c ? ' to ' + c : '')); };
   openMenu(anchor, [{ head: 'Move ' + n + ' note' + (n > 1 ? 's' : '') + ' to section' + (course ? ' in ' + course : '') }]
     .concat(secs.map(x => ({ html: '§ ' + esc(x), fn: () => go(course, x) })))
@@ -7531,11 +7567,11 @@ $('sideBody').addEventListener('click', e => {
     renderSide(); return;
   }
   if (rowSel && state.sideSel.size) { state.sideSel.clear(); state.sideAnchor = rowSel.dataset.open; } else if (rowSel) state.sideAnchor = rowSel.dataset.open;
-  if (t.closest('#newLecBtn')) { const cur = state.docs.get(state.docId); newDoc(cur && !cur.trashed ? (cur.course || '') : ''); return; } // same course and section as the note you're in
-  if (t.closest('#newInkBtn')) { const cur = state.docs.get(state.docId); newDoc(cur && !cur.trashed ? (cur.course || '') : '', { ink: true }); return; }
+  if (t.closest('#newLecBtn')) { const tg = newTarget(); newDoc(tg.course, { section: tg.section }); return; } // the course / section picked in the list, else the note you're in
+  if (t.closest('#newInkBtn')) { const tg = newTarget(); newDoc(tg.course, { section: tg.section, ink: true }); return; }
   if (t.closest('#importTexBtn')) { importTex(); return; }
-  if (t.closest('#newCourseBtn')) { inlineInput(t.closest('#newCourseBtn'), '', v => newDoc(v)); return; }
-  if (t.closest('#emptyTrash')) { const tr = [...state.docs.values()].filter(d => d.trashed); toast('Delete ' + tr.length + ' note' + (tr.length > 1 ? 's' : '') + ' forever?', 'Delete', () => tr.forEach(d => purgeDoc(d.id))); return; }
+  if (t.closest('#newCourseBtn')) { inlineInput(t.closest('#newCourseBtn'), '', v => makeFolder(v)); return; }
+  if (t.closest('#emptyTrash')) { const tr = [...state.docs.values()].filter(d => d.trashed && !d.folder); toast('Delete ' + tr.length + ' note' + (tr.length > 1 ? 's' : '') + ' forever?', 'Delete', () => tr.forEach(d => purgeDoc(d.id))); return; }
   const op = t.closest('[data-open]'); if (op) { openDoc(op.dataset.open); return; }
   const rs = t.closest('[data-restore]'); if (rs) { restoreDoc(rs.dataset.restore); return; }
   const pg = t.closest('[data-purge]'); if (pg) { const m = state.docs.get(pg.dataset.purge); toast('Delete “' + ((m && m.title) || 'Untitled') + '” forever?', 'Delete', () => purgeDoc(pg.dataset.purge)); return; }
@@ -7546,7 +7582,7 @@ $('sideBody').addEventListener('click', e => {
     openMenu(dm, [
       { html: '⧉ Open side by side<small>read it in the right panel next to the note you’re on</small>', fn: () => SideNote.show(id) },
       { html: 'Rename', fn: () => { const row = document.querySelector('.docrow[data-doc="' + id + '"] .docitem'); inlineInput(row, m.title, v => { m.title = v; Store.saveDoc(m); if (id === state.docId) $('dtitle').value = v; }); } },
-      { head: 'Move to section' }].concat([...new Set(liveDocs().filter(d => (d.course || '') === (m.course || '') && d.section).map(d => d.section))].filter(x => x !== m.section).sort().map(x => ({ html: '§ ' + esc(x), fn: () => moveDocToCourse(id, m.course || '', x) })))
+      { head: 'Move to section' }].concat(sectionNames(m.course || '').filter(x => x !== m.section).map(x => ({ html: '§ ' + esc(x), fn: () => moveDocToCourse(id, m.course || '', x) })))
       .concat([{ html: '+ New section…', fn: () => { const row = document.querySelector('.docrow[data-doc="' + id + '"] .docitem'); inlineInput(row, '', v => moveDocToCourse(id, m.course || '', v)); } }])
       .concat(m.section ? [{ html: 'Take out of “' + esc(m.section) + '”', fn: () => moveDocToCourse(id, m.course || '', '') }] : [])
       .concat([{ head: 'Move to course' }]).concat(courseNames().filter(c => c !== m.course).map(c => ({ html: esc(c), fn: () => moveDocToCourse(id, c) })))
@@ -7565,23 +7601,27 @@ $('sideBody').addEventListener('click', e => {
       openMenu(sa, [{ html: 'New page in this section', fn: () => newDoc(course, { section: sname }) },
         { html: 'New handwritten page', fn: () => newDoc(course, { section: sname, ink: true }) },
         { html: 'Rename section', fn: () => inlineInput(sh.querySelector('b'), sname, v => { const ds = [...state.docs.values()].filter(d => (d.course || 'No course') === g && d.section === sname); ds.forEach(d => { d.section = v; }); Store.saveDocs(ds); const k0 = '§' + g + '/' + sname; if (k0 in state.closed) { state.closed['§' + g + '/' + v] = state.closed[k0]; delete state.closed[k0]; lsSet('nb.closed', JSON.stringify(state.closed)); } }) },
-        { html: 'Ungroup (keep the notes in ' + esc(g) + ')', fn: () => { const ds = inSec(); ds.forEach(d => { delete d.section; }); Store.saveDocs(ds); renderSide(); } },
-        { html: '<span style="color:var(--k-warn)">Move section to Trash</span>', fn: () => { const ds = inSec(); toast('Move ' + ds.length + ' note' + (ds.length > 1 ? 's' : '') + ' in “' + sname + '” to Trash?', 'Move', () => trashDocs(ds.map(d => d.id))); } }]);
+        { html: 'Ungroup (keep the notes in ' + esc(g) + ')', fn: () => { const ds = inSec(); ds.forEach(d => { delete d.section; }); Store.saveDocs(ds); dropFolders(course, sname); renderSide(); } },
+        inSec().length ? { html: '<span style="color:var(--k-warn)">Move section to Trash</span>', fn: () => { const ds = inSec(); toast('Move ' + ds.length + ' note' + (ds.length > 1 ? 's' : '') + ' in “' + sname + '” to Trash?', 'Move', () => { trashDocs(ds.map(d => d.id)); dropFolders(course, sname); }); } }
+          : { html: '<span style="color:var(--k-warn)">Remove this empty section</span>', fn: () => { dropFolders(course, sname); renderSide(); toast('Removed “' + sname + '”'); } }]);
       return;
     }
-    const key = '§' + g + '/' + sname; state.closed[key] = !sh.classList.contains('closed'); lsSet('nb.closed', JSON.stringify(state.closed)); renderSide(); return;
+    const picked = sh.classList.contains('fsel'); state.sideFolder = { course, section: sname }; // + Lecture / ✎ Handwritten / ⤒ LaTeX now put new notes here
+    const key = '§' + g + '/' + sname; if (picked || t.closest('.tw') || sh.classList.contains('closed')) state.closed[key] = !sh.classList.contains('closed'); // the first click on an open one only picks it lsSet('nb.closed', JSON.stringify(state.closed)); renderSide(); return;
   }
   const fh = t.closest('.fhead');
   if (fh) {
     const g = fh.dataset.course; const fa = t.closest('[data-fa]');
     if (fa && fa.dataset.fa === 'new') { const last = liveDocs().filter(d => (d.course || 'No course') === g).sort((a, b) => (b.created || '').localeCompare(a.created || ''))[0]; newDoc(g === 'No course' ? '' : g, { section: (last && last.section) || '' }); return; }
     if (fa && fa.dataset.fa === 'menu') {
-      openMenu(fa, [{ html: '+ New section', fn: () => inlineInput(fh.querySelector('b'), '', v => newDoc(g === 'No course' ? '' : g, { section: v })) }, { html: 'Rename course', fn: () => inlineInput(fh.querySelector('b'), g, v => renameCourse(g, v)) },
+      const course = g === 'No course' ? '' : g, all = liveDocs().filter(d => (d.course || 'No course') === g);
+      openMenu(fa, [{ html: '+ New section', fn: () => inlineInput(fh.querySelector('b'), '', v => makeFolder(course, v)) }, { html: 'Rename course', fn: () => inlineInput(fh.querySelector('b'), g, v => renameCourse(g, v)) },
         { html: 'Readings for this course', fn: () => Panel.open('read', g) },
-        { html: '<span style="color:var(--k-warn)">Move all to Trash</span>', fn: () => { const ds = liveDocs().filter(d => (d.course || 'No course') === g); toast('Move ' + ds.length + ' notes to Trash?', 'Move', () => trashDocs(ds.map(d => d.id))); } }]);
+        all.length ? { html: '<span style="color:var(--k-warn)">Move all to Trash</span>', fn: () => { const ds = liveDocs().filter(d => (d.course || 'No course') === g); toast('Move ' + ds.length + ' note' + (ds.length > 1 ? 's' : '') + ' to Trash?', 'Move', () => { trashDocs(ds.map(d => d.id)); dropFolders(course); }); } }
+          : { html: '<span style="color:var(--k-warn)">Remove this empty course</span>', fn: () => { dropFolders(course); renderSide(); toast('Removed “' + g + '”'); } }]);
       return;
     }
-    if (g === '__trash') state.closed.__trash = state.closed.__trash === false ? true : false; else state.closed[g] = !fh.classList.contains('closed');
+    if (g === '__trash') state.closed.__trash = state.closed.__trash === false ? true : false; else { if (fh.classList.contains('fsel') || t.closest('.tw') || fh.classList.contains('closed')) state.closed[g] = !fh.classList.contains('closed'); state.sideFolder = { course: g === 'No course' ? '' : g, section: '' }; }
     lsSet('nb.closed', JSON.stringify(state.closed)); renderSide(); return;
   }
   const j = t.closest('[data-jump]'); if (j) { jumpTo(j.dataset.jump); $('side').classList.remove('open'); return; }
@@ -12728,7 +12768,7 @@ const Drive = {
       let files; try { files = await this.folderFiles(); } catch (e) { this.status = 'error'; this.msg = this.errText(e); this.render(); if (manual) toast(this.msg); return; }
       this._list = files;
       try { await this.pullLinked(false); } catch (e) {} // changes made elsewhere come in before anything goes up
-      const docs = [...state.docs.values()].filter(d => !d.trashed && !d.example);
+      const docs = [...state.docs.values()].filter(d => !d.trashed && !d.example && !d.folder);
       const todo = []; this.foreign = [];
       for (const d of docs) {
         const title = this.baseOf(d) + ' [' + d.id.slice(-6) + '].notebook.json', old = this.baseOf(d) + '.notebook.json';
@@ -13269,7 +13309,7 @@ function importTex(afterId) {
     const r = texToBlocks(ta.value, { solutions: m.querySelector('[data-t="sol"]').checked }); if (!r.blocks.length) return;
     const here = into && (m.querySelector('input[name="texwhere"]:checked') || {}).value === 'here'; m.remove();
     if (here) { r.blocks.forEach(b => { delete b.tex; delete b.texPre; delete b.texPart; }); insertBlocksAfter(afterId || state.order[state.order.length - 1], r.blocks, 'import LaTeX'); toast('Imported ' + r.blocks.length + ' blocks', 'Undo', undo); return; }
-    const cur = state.docs.get(state.docId); const nm = { id: uid('d'), title: r.title || fname || 'Imported LaTeX', course: (cur && !cur.trashed && cur.course) || '', created: now(), updated: now(), imported: fname || 'pasted' }; if (r.pre) nm.tex = { pre: r.pre, post: r.post || '' };
+    const tg = newTarget(); const nm = { id: uid('d'), title: r.title || fname || 'Imported LaTeX', course: tg.course, created: now(), updated: now(), imported: fname || 'pasted' }; if (tg.section) nm.section = tg.section; if (r.pre) nm.tex = { pre: r.pre, post: r.post || '' };
     state.docs.set(nm.id, nm); Store.saveDoc(nm);
     let pos = 1024; const saved = []; for (const x of r.blocks) { const tp = x.type === 'box' ? 'box:' + x.kind : x.type; const nb = newBlock(tp, Object.assign({}, x)); if (nb.tex != null || nb.texPart) nb.texSig = texSigOf(nb); nb.pos = pos; pos += 1024; Store.saveBlock(nm.id, nb, 0); saved.push(nb); }
     if (Store.mode !== 'db' && Store.local.docs[nm.id]) { Store.local.docs[nm.id].blocks = Object.fromEntries(saved.map(b => [b.id, clone(b)])); Store.persist(); }
@@ -16650,7 +16690,7 @@ async function boot() {
   let first = true;
   Store.watchDocs((list, meta) => {
     const cur = state.docs.get(state.docId);
-    state.docs = new Map(list.filter(d => d && d.id).map(d => [d.id, JSON.parse(JSON.stringify(d))]));
+    state.docs = new Map(list.filter(d => d && d.id && !PURGING.has(d.id)).map(d => [d.id, JSON.parse(JSON.stringify(d))]));
     if (cur && state.docs.has(cur.id) && document.activeElement === $('dtitle')) state.docs.get(cur.id).title = cur.title;
     renderSide();
     if (first && !meta.fromCache) {
@@ -16658,6 +16698,7 @@ async function boot() {
       const last = lsGet('nb.last'); const live = liveDocs();
       const pick = (last && state.docs.has(last) && !state.docs.get(last).trashed) ? last : (live[0] && live[0].id);
       if (pick) openDoc(pick); else newDoc('', { blank: true });
+      for (const id of [...PURGING]) purgeDoc(id); // finish deletions cut short last time
       Panel.restorePage();
     }
   });
