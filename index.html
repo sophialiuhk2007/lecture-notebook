@@ -1796,7 +1796,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
           </div>
           <svg id="arrows" aria-hidden="true"><defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--accent);stroke:none"/></marker></defs><g id="arrowg"></g></svg>
         </div>
-        <aside class="cmts" id="cmts" aria-label="Comments"><div class="mh">Comments<button class="lnk muted mres" id="resCmts" hidden title="Show or hide the comments you resolved"></button><button class="lnk muted mhide" id="hideCmts" title="Hide comments and their underlines (you can show them again any time)">Hide</button></div><div id="cmtList"></div></aside>
+        <aside class="cmts" id="cmts" aria-label="Comments"><div class="mh">Comments</div><div id="cmtList"></div></aside>
       </div>
       <div class="pgread" id="pgread" hidden></div>
     </main>
@@ -8410,8 +8410,6 @@ function setCmtsHidden(on) {
 // “Show resolved (n)” in the Comments header
 function updResolvedTog() { const bt = $('resCmts'); if (!bt) return; let n = 0; for (const b of ordered()) for (const c of (b.comments || [])) if (c.resolved && !viewHidden(b)) n++;
   bt.hidden = !n && !state.showResolved; const t = state.showResolved ? 'Hide resolved' : 'Show resolved (' + n + ')'; if (bt.textContent !== t) bt.textContent = t; }
-$('resCmts').onclick = () => { state.showResolved = !state.showResolved; renderAll(); updResolvedTog(); };
-$('hideCmts').onclick = () => { setCmtsHidden(true); toast('Comments hidden — “Show comments” brings them back'); };
 $('showCmts').onclick = () => setCmtsHidden(false);
 if (lsGet('nb.hideCmts') === '1') { document.body.classList.add('nocmts'); const tg = $('cmtTog'); if (tg) { tg.title = 'Show comments'; tg.setAttribute('aria-pressed', 'true'); tg.setAttribute('aria-label', 'Show comments'); } }
 // re-underline the other blocks a cross-block comment covers
@@ -8536,7 +8534,7 @@ document.addEventListener('click', e => {
   // Cancel only throws away a comment you just started (never an existing thread, even one with no words of its own)
   if (k === 'cancel') { state.editingCmt = null; if (freshCmts.has(c.id) && !c.text && !(c.replies || []).length && !pendingReps[c.id]) { b.comments = b.comments.filter(x => x !== c); Store.saveBlock(state.docId, b, 0); } freshCmts.delete(c.id); }
   if (k === 'resolve') { const bid = b.id, cid = c.id, was = !!c.resolved; c.resolved = !was; Store.saveBlock(state.docId, b, 0);
-    if (!was) toast('Comment resolved' + (state.showResolved ? '' : ' — “Show resolved” in the Comments header brings it back'), 'Undo', () => { const bb = state.blocks.get(bid); const cc = bb && (bb.comments || []).find(x => x.id === cid); if (!cc) return; cc.resolved = false; Store.saveBlock(state.docId, bb, 0); refreshCmtCards(bb); updResolvedTog(); }); }
+    if (!was) toast('Comment resolved' + (state.showResolved ? '' : ' — Export → “Show resolved comments” brings it back'), 'Undo', () => { const bb = state.blocks.get(bid); const cc = bb && (bb.comments || []).find(x => x.id === cid); if (!cc) return; cc.resolved = false; Store.saveBlock(state.docId, bb, 0); refreshCmtCards(bb); updResolvedTog(); }); }
   if (k === 'del') { const bid = b.id, at = b.comments.indexOf(c); b.comments = b.comments.filter(x => x !== c); freshCmts.delete(c.id); if (state.editingCmt === c.id) state.editingCmt = null; Store.saveBlock(state.docId, b, 0);
     toast('Comment deleted', 'Undo', () => { const bb = state.blocks.get(bid); if (!bb || (bb.comments || []).some(x => x.id === c.id)) return; bb.comments = (bb.comments || []).slice(); bb.comments.splice(Math.min(at, bb.comments.length), 0, c); Store.saveBlock(state.docId, bb, 0); refreshCmtCards(bb); if (c.span) remarkSpan(c, bid); }); }
   if (k === 'retry') { const rk = act.dataset.rk; const r = repOf(c, rk); if (!r) return; c.replies = (c.replies || []).filter(x => x !== r); Store.saveBlock(state.docId, b, 0);
@@ -15106,7 +15104,7 @@ const Ann = {
         const ae = document.activeElement; const foc = ae && ae.matches && ae.matches('.pcmt textarea') && host.contains(ae) ? { cid: ae.closest('.cmt').dataset.cid, sel: ae.matches('[data-creply]') ? '[data-creply]' : ae.matches('[data-repedit]') ? '[data-repedit]' : '[data-ctext]', a: ae.selectionStart, b: ae.selectionEnd } : null;
         const st = host.scrollTop;
         const nr = this.data ? this.data.box.filter(b => b.resolved).length : 0;
-        host.innerHTML = '<div class="pchd"><span>Comments on this reading</span><span class="grow"></span>' + (nr && !state.showResolved ? '<button class="lnk muted" data-pcb="res" aria-pressed="' + !!this.showRes + '" title="Show or hide the comments you resolved">' + (this.showRes ? 'Hide' : 'Show') + ' resolved (' + nr + ')</button>' : '') + '<button class="lnk muted" data-pcb="toggle" title="Hide the comments">Hide</button></div>' + list.map(b => this.pcCard(b)).join('');
+        host.innerHTML = '<div class="pchd"><span>Comments on this reading</span></div>' + list.map(b => this.pcCard(b)).join('');
         host.scrollTop = st;
         if (foc) { const ta = host.querySelector('.cmt[data-cid="' + foc.cid + '"] textarea' + foc.sel); if (ta) { ta.focus(); try { ta.setSelectionRange(foc.a, foc.b); } catch (e) {} } }
         fitCmtUI(host); paintCmtHl(host); markLongCmts(host);
@@ -15123,7 +15121,7 @@ const Ann = {
     const ae = document.activeElement; const foc = ae && ae.matches && ae.matches('.pcmt textarea') && host.contains(ae) ? { cid: ae.closest('.cmt').dataset.cid, sel: ae.matches('[data-creply]') ? '[data-creply]' : ae.matches('[data-repedit]') ? '[data-repedit]' : '[data-ctext]', a: ae.selectionStart, b: ae.selectionEnd } : null;
     const old = {}; host.querySelectorAll('.pclist .cmt[data-cid]').forEach(c => { old[c.dataset.cid] = c.style.getPropertyValue('--y'); });
     const nr = this.data ? this.data.box.filter(b => b.resolved).length : 0;
-    host.innerHTML = '<div class="mh">Comments' + (nr && !state.showResolved ? '<button class="lnk muted" data-pcb="res" aria-pressed="' + !!this.showRes + '" title="Show or hide the comments you resolved">' + (this.showRes ? 'Hide' : 'Show') + ' resolved (' + nr + ')</button>' : '') + '<button class="lnk muted mhide" data-pcb="toggle" title="Hide the comments (you can show them again any time)">Hide</button></div>' +
+    host.innerHTML = '<div class="mh">Comments</div>' +
       (list.length ? '' : '<div class="pgnone">Select text in the PDF and press 💬 Comment, or drag a ▭ Box.</div>') + '<div class="pclist noanim">' + list.map(b => this.pcCard(b)).join('') + '</div>';
     host.querySelectorAll('.pclist .cmt[data-cid]').forEach(c => { if (old[c.dataset.cid]) c.style.setProperty('--y', old[c.dataset.cid]); });
     if (foc) { const ta = host.querySelector('.cmt[data-cid="' + foc.cid + '"] textarea' + foc.sel); if (ta) { ta.focus({ preventScroll: true }); try { ta.setSelectionRange(foc.a, foc.b); } catch (e) {} } }
