@@ -777,8 +777,9 @@ body.rsdrag,body.rsdrag *{cursor:ns-resize!important;user-select:none!important}
 body.nocmts .cmts{display:none!important}body.nocmts .cmtinline{display:none!important}body.nocmts .sheet{grid-template-columns:minmax(0,calc(760px * var(--tz,1)))!important}body.nocmts.tzfix:not(.pz) .sheet{grid-template-columns:calc(var(--pw) * var(--tz))!important}
 body.nocmts .cmta{text-decoration:none;background:none!important}body.nocmts .cmta .katex{border-bottom:0}
 .cmts .mh{display:flex;align-items:center}.cmts .mh .mhide{margin-left:auto;text-transform:none;letter-spacing:0;font-size:12px;padding:0}
-.showcmts{position:sticky;float:right;z-index:25;top:10px;margin:10px 14px 0 0;display:none;align-items:center;gap:5px;font:12.5px var(--f-ui);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px 10px;box-shadow:var(--shadow);cursor:pointer}
-.showcmts:hover{color:var(--ink)}body.nocmts .showcmts{display:inline-flex}.rgrip{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:6;touch-action:none}
+.cmtpill{position:sticky;top:10px;height:0;z-index:25;display:flex;justify-content:flex-end;align-items:flex-start;pointer-events:none}.cmtpill.inrow{position:relative;top:0;height:auto}
+.showcmts{pointer-events:auto;flex:none;margin:10px 14px 0 0;display:inline-flex;align-items:center;gap:5px;font:12.5px var(--f-ui);color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:4px 10px;box-shadow:var(--shadow);cursor:pointer}
+.showcmts:hover{color:var(--ink)}.rgrip{position:absolute;left:-5px;top:0;bottom:0;width:10px;cursor:ew-resize;z-index:6;touch-action:none}
 .rgrip::after{content:"";position:absolute;left:4px;top:50%;width:2px;height:44px;margin-top:-22px;border-radius:1px;background:var(--line);opacity:0;transition:opacity .15s}
 .rgrip:hover::after,.rgrip.on::after{opacity:1;background:var(--muted)}
 body.rpdrag,body.rpdrag *{cursor:ew-resize!important;user-select:none!important}body.rpdrag iframe,body.rpdrag canvas{pointer-events:none}
@@ -1769,7 +1770,7 @@ body.scrfull .rpanel .rscr .scrnote{display:none}
       </div>
       <div class="sidebody" id="sideBody"></div>
     </aside>
-    <main class="scroll" id="scroll"><button class="showcmts" id="showCmts" title="Show comments">💬 <span>Show comments</span></button>
+    <main class="scroll" id="scroll"><div class="cmtpill" id="cmtPill"><button class="showcmts" id="showCmts" title="Show the comments and their underlines">💬 <span>Show comments</span></button></div>
 
   <button class="ofab" id="outlineFab" hidden title="Open the outline next to your notes">☰ Outline</button>
   <div class="seg tzoom" id="tzoom" role="group" aria-label="Zoom"><button data-tz="-" title="Zoom out (Ctrl −)" aria-label="Zoom out">−</button><button data-tz="0" id="tzl" title="Reset zoom (Ctrl 0)">100%</button><button data-tz="+" title="Zoom in (Ctrl +)" aria-label="Zoom in">+</button></div>
@@ -8402,16 +8403,25 @@ $('cmtTog').addEventListener('click', () => setCmtsHidden(!document.body.classLi
 function setCmtsHidden(on) {
   document.body.classList.toggle('nocmts', !!on); lsSet('nb.hideCmts', on ? '1' : '');
   const n = ordered().reduce((a, b) => a + (b.comments || []).filter(c => !c.resolved).length, 0);
-  const sb = $('showCmts'); if (sb) sb.querySelector('span').textContent = 'Show comments' + (n ? ' (' + n + ')' : '');
+  const sb = $('showCmts'); if (sb) { sb.querySelector('span').textContent = on ? 'Show comments' + (n ? ' (' + n + ')' : '') : 'Hide comments'; sb.title = on ? 'Show the comments and their underlines' : 'Hide the comments and their underlines'; sb.setAttribute('aria-pressed', on ? 'false' : 'true'); }
   const tg = $('cmtTog'); if (tg) { tg.setAttribute('aria-pressed', on ? 'true' : 'false'); tg.title = on ? 'Show comments' + (n ? ' (' + n + ')' : '') : 'Hide comments'; tg.setAttribute('aria-label', on ? 'Show comments' : 'Hide comments'); }
   document.querySelectorAll('#inkdocbar [data-pa="cmts"]').forEach(x => x.setAttribute('aria-pressed', String(!on)));
-  setTimeout(() => { if (typeof TZ !== 'undefined') TZ.refit(); if (typeof PZ !== 'undefined' && PZ.full) { PZ.layout(); PZ.repaint(); } layoutCmts(); }, 30);
+  setTimeout(() => { if (typeof TZ !== 'undefined') TZ.refit(); if (typeof PZ !== 'undefined' && PZ.full) { PZ.layout(); PZ.repaint(); } layoutCmts(); fitCmtPill(); }, 30);
 }
 // “Show resolved (n)” in the Comments header
 function updResolvedTog() { const bt = $('resCmts'); if (!bt) return; let n = 0; for (const b of ordered()) for (const c of (b.comments || [])) if (c.resolved && !viewHidden(b)) n++;
   bt.hidden = !n && !state.showResolved; const t = state.showResolved ? 'Hide resolved' : 'Show resolved (' + n + ')'; if (bt.textContent !== t) bt.textContent = t; }
-$('showCmts').onclick = () => setCmtsHidden(false);
+$('showCmts').onclick = () => setCmtsHidden(!document.body.classList.contains('nocmts'));
 if (lsGet('nb.hideCmts') === '1') { document.body.classList.add('nocmts'); const tg = $('cmtTog'); if (tg) { tg.title = 'Show comments'; tg.setAttribute('aria-pressed', 'true'); tg.setAttribute('aria-label', 'Show comments'); } }
+else { const sb = $('showCmts'); sb.querySelector('span').textContent = 'Hide comments'; sb.title = 'Hide the comments and their underlines'; sb.setAttribute('aria-pressed', 'true'); }
+function fitCmtPill() {
+  const row = $('cmtPill'), b = $('showCmts'); if (!row || !b) return; row.classList.remove('inrow');
+  const r = b.getBoundingClientRect(); if (!r.width) return;
+  const hit = [...document.querySelectorAll('#sheet .paper, #cmts')].some(el => { if (!el.offsetParent) return false; const q = el.getBoundingClientRect(); return q.width && r.left < q.right + 6 && r.right > q.left - 6; });
+  if (hit) row.classList.add('inrow');
+}
+{ let raf = 0; const go = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; fitCmtPill(); }); };
+  window.addEventListener('resize', go); if (window.ResizeObserver) { const ro = new ResizeObserver(go); ro.observe($('scroll')); ro.observe($('sheet')); } setTimeout(go, 300); }
 // re-underline the other blocks a cross-block comment covers
 function remarkSpan(c, host) { for (const x of (c && c.span) || []) { if (x.b === host) continue; const el = $('b-' + x.b), bb = state.blocks.get(x.b); if (el && bb) markAnchors(el, bb); } }
 function renderCmts() {
