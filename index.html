@@ -12595,6 +12595,7 @@ const DRIVE = 'Google Drive';
 const DRIVE_FOLDER = 'Lecture Notebook backups';
 const Drive = {
   mcp: null, fileArgs: false, cfg: null, dirty: new Set(), timer: null, firstDirty: 0, busy: false, status: 'off', msg: '', lastAt: null,
+  twoWay() { return !!window.__web; }, // claude.ai notebook: backup only (Sophia, Nov 14); the website also brings other browsers' changes in
   async init() {
     try { this.mcp = window.claude && window.claude.use ? await window.claude.use('mcp') : null; } catch (e) { this.mcp = null; }
     await this.loadCfg();
@@ -12602,8 +12603,8 @@ const Drive = {
     this.status = !this.mcp ? 'unavailable' : this.cfg.auto ? 'on' : 'off';
     this.lastAt = this.cfg.lastAt || null; this.render();
     if (this.mcp) { setTimeout(() => { if (this.cfg.auto) this.syncAll(false); }, 15000); setInterval(() => { if (this.cfg.auto && document.visibilityState === 'visible') this.syncAll(false); }, 15 * 60000);
-      setInterval(() => { if (this.cfg.auto && document.visibilityState === 'visible') this.pullLinked(false); }, 2 * 60000); }
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && this.cfg.auto && this.dirty.size) this.flush(); if (document.visibilityState === 'visible' && this.cfg.auto && this.mcp && Date.now() - (this._pulledAt || 0) > 30000) this.pullLinked(false); });
+      if (this.twoWay()) setInterval(() => { if (this.cfg.auto && document.visibilityState === 'visible') this.pullLinked(false); }, 2 * 60000); }
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && this.cfg.auto && this.dirty.size) this.flush(); if (document.visibilityState === 'visible' && this.cfg.auto && this.mcp && this.twoWay() && Date.now() - (this._pulledAt || 0) > 30000) this.pullLinked(false); });
   },
   async loadCfg() {
     let c = null;
@@ -12733,13 +12734,13 @@ const Drive = {
       let prev = this.cfg.files[docId]; const csig = this.csig(m, blocks);
       if (!manual && prev && (prev.sig === sig || prev.csig === csig)) { this.status = 'ok'; return true; }
       await this.ensureFolder();
-      if (prev) { // another browser replaced this note's Drive copy since we last synced: bring that in first
+      if (prev && this.twoWay()) { // another browser replaced this note's Drive copy since we last synced: bring that in first
         const nf = this.newestFor(this._list || await this.folderFiles(), docId);
         if (nf && nf.id === prev.fileId && prev.csig === csig) { this.status = 'ok'; return true; } // Drive already has exactly this
         if (nf && nf.id !== prev.fileId) { const r = await this.pullOne(docId, nf); prev = this.cfg.files[docId]; if (r === 'updated' || r === 'same') { this.status = 'ok'; return true; } }
         if (!manual && prev && prev.csig === this.csig(state.docs.get(docId), await this.localBlocks(docId))) { this.status = 'ok'; return true; }
       }
-      if (!prev) { // first backup of this note from this browser: don't replace another browser's copy of it
+      if (!prev && this.twoWay()) { // first backup of this note from this browser: don't replace another browser's copy of it
         const base0 = this.baseOf(m), t0 = base0 + ' [' + docId.slice(-6) + '].notebook.json';
         const there = (this._list || await this.folderFiles()).some(x => x.title === t0 || x.title === base0 + '.notebook.json');
         if (there) { this.status = this.cfg.auto ? 'ok' : 'off'; return null; }
@@ -12792,7 +12793,7 @@ const Drive = {
     try {
       let files; try { files = await this.folderFiles(); } catch (e) { this.status = 'error'; this.msg = this.errText(e); this.render(); if (manual) toast(this.msg); return; }
       this._list = files;
-      try { await this.pullLinked(false); } catch (e) {} // changes made elsewhere come in before anything goes up
+      if (this.twoWay()) { try { await this.pullLinked(false); } catch (e) {} } // changes made elsewhere come in before anything goes up
       const docs = [...state.docs.values()].filter(d => !d.trashed && !d.example && !d.folder);
       const todo = []; this.foreign = [];
       for (const d of docs) {
@@ -12800,7 +12801,7 @@ const Drive = {
         const mine = files.filter(f => f.title === title || f.title === old).sort((a, b) => (b.modifiedTime || '').localeCompare(a.modifiedTime || ''));
         const newest = mine[0];
         // a backup this browser never made or loaded: another browser's copy of this note — never replace it from here
-        if (newest && !this.cfg.files[d.id]) { this.foreign.push(d.id); continue; }
+        if (newest && !this.cfg.files[d.id] && this.twoWay()) { this.foreign.push(d.id); continue; }
         const stale = !newest || newest.title !== title || (d.updated && new Date(d.updated).getTime() > new Date(newest.modifiedTime || 0).getTime() + 2000);
         if (stale) todo.push(d);
         else if (mine.length > 1) { for (const f of mine.slice(1)) { try { await this.call('trash_file', { fileId: f.id }); } catch (e) {} } }
