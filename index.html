@@ -8658,7 +8658,8 @@ document.addEventListener('keydown', e => {
   if (!mod && /^(Enter| |Backspace|Delete|Arrow(Up|Down|Left|Right))$/.test(e.key) && e.target.closest && e.target.closest('button,a,[role="tab"],[role="menuitem"],summary') && !e.target.closest('#blocks')) return;
   if (mod && e.key === 'Enter') { e.preventDefault(); insertAfter(ids[ids.length - 1], 'p'); return; } // ⌘↵: a new block below, a Claude answer or the Ask Claude chat while blocks are still selected: ⌘C / Ctrl+C copies those words (the copy handler below), not the blocks
   if ((mod && (k === 'c' || k === 'x')) || ((e.key === 'Delete' || e.key === 'Backspace') && !mod)) { const s = getSelection(); const n = s && !s.isCollapsed && s.rangeCount && s.toString().trim() && s.anchorNode; const ne = n && (n.nodeType === 1 ? n : n.parentElement);
-    if (ne && (ne.closest(CLIP_SRC) || !ne.closest('#blocks'))) { if (mod && k === 'x') e.preventDefault(); return; } }
+    if (ne && (ne.closest(CLIP_SRC) || !ne.closest('#blocks'))) { if (mod && k === 'x') e.preventDefault(); return; }
+    if (ne && !mod) { const bl = ne.closest('#blocks .blk'); if (bl && state.blocks.get(bl.dataset.id)) { e.preventDefault(); s.removeAllRanges(); clearSel(); startEdit(bl.dataset.id); toast('Only part was highlighted, so the block is kept — delete that part here'); return; } } }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteBlocks(ids); return; }
   if (mod && k === 'c') { e.preventDefault(); copyBlocks(ids); return; }
   if (mod && k === 'x') { e.preventDefault(); copyBlocks(ids, true); return; }
