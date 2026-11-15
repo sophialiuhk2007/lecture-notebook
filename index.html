@@ -11428,6 +11428,18 @@ const RT = {
     const mk = /x/i.test(pre) ? '☑ ' : /\[/.test(pre) ? '☐ ' : '• ';
     RT.push(el); RT.render(el, v.slice(0, ls) + m[1] + mk + v.slice(a), ls + m[1].length + 2); RT.fire(el, 'insertReplacementText'); return true;
   },
+  // words selected to become math: the sentence's super/subscripts (^2^, ~2~, ², ₂) become the formula's, and "log2 (10)" is log base 2
+  scriptsToMath(t, typst) {
+    if (/\\[a-zA-Z]/.test(t)) typst = false; // LaTeX in the selection: it is read as LaTeX
+    const w = (k, x) => (k === '^' ? '^' : '_') + (typst ? '(' + x + ')' : '{' + x + '}');
+    const UP = '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿⁱ', UPN = '0123456789+-ni', DN = '₀₁₂₃₄₅₆₇₈₉₊₋', DNN = '0123456789+-';
+    return String(t || '')
+      .replace(/\^\{([^{}]*)\}\^/g, (m, x) => w('^', x)).replace(/~\{([^{}]*)\}~/g, (m, x) => w('~', x))
+      .replace(/\^([^\s~^$]+)\^/g, (m, x) => w('^', x)).replace(/~([^\s~^$]+)~/g, (m, x) => w('~', x))
+      .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿⁱ]+/g, m => w('^', [...m].map(c => UPN[UP.indexOf(c)]).join('')))
+      .replace(/[₀₁₂₃₄₅₆₇₈₉₊₋]+/g, m => w('~', [...m].map(c => DNN[DN.indexOf(c)]).join('')))
+      .replace(/(^|[^A-Za-z\\])(log|lg)(\d{1,2})(?![\w.])/g, (m, p, f, n) => p + f + w('~', n));
+  },
   format(el, kind) {
     el.focus();
     if (kind === 'sup' || kind === 'sub') { const sl = getSelection(); if (sl && sl.isCollapsed) { RT.script(el, kind === 'sup' ? 'SUP' : 'SUB', 0); return; } // no selection: the caret moves up / down so you can see it
@@ -11437,7 +11449,7 @@ const RT = {
     if (kind === 'code') { RT.wrapSel(el, () => document.createElement('code'), 'code'); return; }
     if (kind === 'ask') { RT.wrapSel(el, () => { const m = document.createElement('span'); m.className = 'ask'; return m; }, 'span.ask'); return; }
     if (kind === 'math' || kind === 'wrapmath') {
-      const [a, b] = RT.selOff(el); const txt = b > a ? RT.ser(el).slice(a, b).replace(/\$/g, ' ').replace(/\s+/g, ' ').trim() : '';
+      const [a, b] = RT.selOff(el); const txt = b > a ? RT.scriptsToMath(RT.ser(el).slice(a, b).replace(/\$/g, ' ').replace(/\s+/g, ' ').trim(), fmode() === 'typst') : '';
       if (txt && fmode() === 'typst' && !/\\[a-zA-Z]/.test(txt)) { const r = typstPrev(txt); RT.insertMath(el, r.err ? C.tyErrTex(txt) : r.tex, kind === 'math', C.TY + txt); } // selected text read as Typst
       else RT.insertMath(el, txt ? C.mathToLatex(/\\[a-zA-Z]/.test(txt) ? txt : C.rewritePhrases(txt)) : '', kind === 'math' || !txt);
       if (kind === 'wrapmath') { const s = getSelection(); const z = s.focusNode; let at = z && z.previousSibling; while (at && at.nodeType === 3 && /^\uFEFF*$/.test(at.data)) at = at.previousSibling; el._wrapped = { atom: at && at.classList && at.classList.contains('matom') ? at : null, t: Date.now() }; }
