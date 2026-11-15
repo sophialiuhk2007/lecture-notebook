@@ -10548,7 +10548,7 @@ const SCRIPT_BASE = new RegExp('^(?:[A-Za-z][\u0300-\u036f]*|[A-Za-z]\'+|[α-ω�
 function tyScriptTok(tok) {
   let d = 0, k = -1;
   for (let i = 0; i < tok.length; i++) { const ch = tok[i]; if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) d--; else if ((ch === '_' || ch === '^') && !d && i > 0) { k = i; break; } }
-  if (k < 0 || /[~$]/.test(tok)) return tok; let base = tok.slice(0, k); if (!SCRIPT_BASE.test(base)) return tok;
+  if (k < 0 || /[~$]/.test(tok) || /\^[^\s~^$]+\^|\^\{/.test(tok)) return tok; let base = tok.slice(0, k); if (!SCRIPT_BASE.test(base)) return tok;
   const segs = []; let i = k;
   while (i < tok.length) { const kind = tok[i]; if (kind !== '_' && kind !== '^') return tok; let j = i + 1; d = 0; for (; j < tok.length; j++) { const ch = tok[j]; if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) d--; else if ((ch === '_' || ch === '^') && !d) break; } let body = tok.slice(i + 1, j); if (!body) return tok; if (/^\(.*\)$/.test(body) && body.lastIndexOf('(') === 0) body = body.slice(1, -1); segs.push((kind === '_' ? '~' : '^') + symTxt(body) + (kind === '_' ? '~' : '^')); i = j; }
   if (/[\s~^]/.test(segs.map(x => x.slice(1, -1)).join(''))) return tok;
@@ -10861,6 +10861,8 @@ const RT = {
       const r = document.createRange(); r.setStart(nx.firstChild, 1); r.collapse(true); sl.removeAllRanges(); sl.addRange(r); RT.push(d); RT.fire(d); return;
     }
     const r0 = sl.getRangeAt(0); const nx = document.createElement(tag); nx.textContent = '\u200b'; if (key) nx.dataset.k = '1'; r0.insertNode(nx);
+    { let pv = nx.previousSibling; while (pv && pv.nodeType === 3 && !pv.data.replace(/[\u200b\uFEFF]/g, '')) pv = pv.previousSibling; // right after a script of the same kind: carry on in it
+      if (pv && pv.nodeType === 1 && pv.tagName === tag) { nx.remove(); if (key) pv.dataset.k = '1'; const t = document.createTextNode('\u200b'); pv.appendChild(t); const r1 = document.createRange(); r1.setStart(t, 1); r1.collapse(true); sl.removeAllRanges(); sl.addRange(r1); RT.push(d); RT.fire(d); return; } }
     const r = document.createRange(); r.setStart(nx.firstChild, 1); r.collapse(true); sl.removeAllRanges(); sl.addRange(r); RT.push(d); RT.fire(d);
   },
   scriptTidy(el) { const t = el.textContent.replace(/[\u200b\uFEFF]/g, ''); if (!t) { el.remove(); return; } const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let x; const ns = []; while ((x = w.nextNode())) ns.push(x); ns.forEach(z => { if (/[\u200b\uFEFF]/.test(z.data)) z.data = z.data.replace(/[\u200b\uFEFF]/g, ''); }); if (el.dataset.k) { const x = symTxt(t); if (x !== t) el.textContent = x; } },
@@ -10874,7 +10876,7 @@ const RT = {
       const tag = data === '_' ? 'SUB' : 'SUP';
       if (inS) { if (inS.dataset.par || inS.tagName === tag) return false; drop(); RT.script(d, tag, 1); return true; } // x_i^2: straight from the subscript into the superscript
       // only after a letter / Greek letter / number / ) ] — so snake_case and file_names stay as typed
-      const before = n.data.slice(0, o - 1); const w = (before.match(/[^\s\u00a0]*$/) || [''])[0];
+      const before = n.data.slice(0, o - 1); const w = (before.match(/[^\s\u00a0]*$/) || [''])[0].replace(/^.*[(\[{,;=+*\/|<>](?=[^)\]}])/, '');
       const ok = w ? (SCRIPT_BASE.test(w) || /[)\]∞]$/.test(w)) : !!(n.previousSibling && /^(SUB|SUP)$/.test(n.previousSibling.nodeName) && !before);
       if (!ok) return false;
       drop(); const g = GREEK_CH[w] || TY_WORD[w]; if (g && w) { const p = sl.anchorOffset; n.replaceData(p - w.length, w.length, g); const r = document.createRange(); r.setStart(n, p - w.length + g.length); r.collapse(true); sl.removeAllRanges(); sl.addRange(r); }
@@ -10887,7 +10889,8 @@ const RT = {
       if (data === ')') { if (+inS.dataset.par > 0) { inS.dataset.par = String(+inS.dataset.par - 1); return false; } drop(); RT.scriptTidy(inS); RT.caretAfter(inS); RT.push(d); RT.fire(d); return true; }
       return false;
     }
-    if (/[\s.,;:!?]/.test(data)) { drop(); const was = inS.isConnected; RT.scriptTidy(inS); let last = inS; if (inS.isConnected && inS.tagName === 'SUB' && inS.previousSibling && inS.previousSibling.nodeName === 'SUP') { last = inS.previousSibling; last.before(inS); } /* χ^2_k → χ~k~^2^ (stacked) */ if (inS.isConnected) RT.caretAfter(last, data); else if (was) { /* empty: keep the character typed */ const t = document.createTextNode((inS.tagName === 'SUB' ? '_' : '^') + data); n.parentNode.insertBefore(t, n.nextSibling); } RT.push(d); RT.fire(d); return true; }
+    const closes = (() => { const k = ')]}'.indexOf(data); if (k < 0) return false; const tx = inS.textContent; const o = '([{'[k]; let dp = 0; for (const ch of tx.slice(0, tx.lastIndexOf(data))) { if (ch === o) dp++; else if (ch === data && dp) dp--; } return !dp; })(); // E[X^2]: the ] closes a bracket opened on the line
+    if (/[\s.,;:!?]/.test(data) || closes) { drop(); const was = inS.isConnected; RT.scriptTidy(inS); let last = inS; if (inS.isConnected && inS.tagName === 'SUB' && inS.previousSibling && inS.previousSibling.nodeName === 'SUP') { last = inS.previousSibling; last.before(inS); } /* χ^2_k → χ~k~^2^ (stacked) */ if (inS.isConnected) RT.caretAfter(last, data); else if (was) { /* empty: keep the character typed */ const t = document.createTextNode((inS.tagName === 'SUB' ? '_' : '^') + data); n.parentNode.insertBefore(t, n.nextSibling); } RT.push(d); RT.fire(d); return true; }
     return false;
   },
   // Backspace in a just-opened _ / ^ script: back to the character you typed
@@ -11433,7 +11436,7 @@ const RT = {
     if (/\\[a-zA-Z]/.test(t)) typst = false; // LaTeX in the selection: it is read as LaTeX
     const w = (k, x) => (k === '^' ? '^' : '_') + (typst ? '(' + x + ')' : '{' + x + '}');
     const UP = '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿⁱ', UPN = '0123456789+-ni', DN = '₀₁₂₃₄₅₆₇₈₉₊₋', DNN = '0123456789+-';
-    return String(t || '')
+    return String(t || '').replace(/√\s*\(/g, typst ? 'sqrt(' : '√(').replace(/√([A-Za-z0-9α-ω]+)/g, typst ? 'sqrt($1)' : '√$1')
       .replace(/\^\{([^{}]*)\}\^/g, (m, x) => w('^', x)).replace(/~\{([^{}]*)\}~/g, (m, x) => w('~', x))
       .replace(/\^([^\s~^$]+)\^/g, (m, x) => w('^', x)).replace(/~([^\s~^$]+)~/g, (m, x) => w('~', x))
       .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿⁱ]+/g, m => w('^', [...m].map(c => UPN[UP.indexOf(c)]).join('')))
@@ -11487,7 +11490,7 @@ const RT = {
       if (t === 'insertText' && data && !inSrc) {
         const tym = fmode() === 'typst'; // Typst: math is only what you put between $ … $ (no guessing from words)
         if (tym && data === ' ' && RT.tyStart(d, 1)) {}
-        else if (tym && /[_^()\s.,;:!?]/.test(data) && RT.scriptKey(d, data)) {}
+        else if (tym && /[_^()\]}\s.,;:!?]/.test(data) && RT.scriptKey(d, data)) {}
         else if (/[$*=?`\]]/.test(data) && RT.hasMarkup(d)) { RT.push(d); let [c] = RT.selOff(d); let v = RT.ser(d); if (data === '$' && tym) { const r = RT.tyMark(v, c); const j = RT.joinAt(r.v, r.c); v = j.v; c = j.c; } RT.render(d, v, c); }
         else if (data === '(' && RT.parenWord(d)) {}
         else if (data === ' ' && RT.bulletAuto(d)) {}
