@@ -11438,7 +11438,15 @@ const RT = {
       .replace(/\^([^\s~^$]+)\^/g, (m, x) => w('^', x)).replace(/~([^\s~^$]+)~/g, (m, x) => w('~', x))
       .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿⁱ]+/g, m => w('^', [...m].map(c => UPN[UP.indexOf(c)]).join('')))
       .replace(/[₀₁₂₃₄₅₆₇₈₉₊₋]+/g, m => w('~', [...m].map(c => DNN[DN.indexOf(c)]).join('')))
-      .replace(/(^|[^A-Za-z\\])(log|lg)(\d{1,2})(?![\w.])/g, (m, p, f, n) => p + f + w('~', n));
+      .replace(/(^|[^A-Za-z\\])(log|lg)(\d{1,2})(?![\w.])/g, (m, p, f, n) => p + f + w('~', n))
+      .replace(/"[^"]*"|[\\#.]?[A-Za-z]{2,}(?:\.[A-Za-z.]*)?/g, m => !typst || /^["\\#.]/.test(m) || m.includes('.') || RT.tyKnown(m) ? m : [...m].join(' '));
+  },
+  // is this run of letters a name Typst math (or the notebook's macros) knows? If not, selected words read it letter by letter
+  tyKnown(wd) {
+    RT._tyK = RT._tyK || new Map(); if (RT._tyK.has(wd)) return RT._tyK.get(wd);
+    const can = src => { try { katex.renderToString(C.typstToTex(src), { throwOnError: true, macros: Object.assign({}, KMAC) }); return true; } catch (e) { return false; } };
+    const ok = can(wd) || can(wd + '(x)') || can(wd + '(x, y)'); // (sqrt, binom… are names only with their brackets)
+    RT._tyK.set(wd, ok); return ok;
   },
   format(el, kind) {
     el.focus();
