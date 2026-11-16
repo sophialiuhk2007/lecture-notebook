@@ -5016,7 +5016,7 @@ function intervals(s, nospace) {
 const NAT_HINT = new RegExp('(^|[^\\\\A-Za-z_^{])(from|to|of|over|sqrt|sum|prod|integral|in|notin|subset|subseteq|union|inter|and|or|if|then|for|where|given|infinity|oo|geq|leq|neq|approx|choose|bar|hat|tilde|RR|NN|ZZ|QQ|CC|PP|EE|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|nu|pi|rho|sigma|tau|phi|chi|psi|omega|infty)(?![A-Za-z])|<=|>=|!=|->|=>|<-|\\+-|(^|[^\\\\A-Za-z])E\\s*[\\[|]');
 function isPureLatex(src) {
   if (/^\s*\\relax\b/.test(src)) return true;
-  if (!/\\[A-Za-z]{2,}/.test(src)) return false;
+  if (!/\\[A-Za-z]{2,}|\\[,;:!]/.test(src)) return false;
   const bare = src.replace(/\\(text|mathrm|operatorname\*?|mathbf|mathit|textbf|textit|mbox)\s*\{[^{}]*\}/g, ' ');
   return !NAT_HINT.test(bare);
 }
