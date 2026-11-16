@@ -5736,16 +5736,19 @@ function smartSplit(raw) {
 // Text-level parsing -> AST. Blocks: {type:'p', inl:[...]} | {type:'list', ordered, items:[[inl]]} | {type:'math', tex}
  // Typst mode (Nov 10): plain text is never guessed into math — only $ … $ is math (set by the notebook)
 let AUTO_MATH = true;
+let REAL_TEX = false; // text written by Claude: $ … $ is LaTeX exactly as written (no typing shortcuts)
+function setRealTex(v) { REAL_TEX = !!v; }
+function mathSrc(x) { return REAL_TEX && !String(x).startsWith(TY) ? tidyTex(x) : wordsToTex(x); }
 function setAutoMath(v) { AUTO_MATH = !!v; }
 function parseInline(s, opts) {
   const out = []; let i = 0, buf = '';
-  const pushText = () => { if (buf) { const parts = (opts && opts.plain) || !AUTO_MATH ? [{ t: 'text', v: buf }] : smartSplit(buf); if (parts.some(x => x.t === 'math')) wordsOf(buf, parts); for (const n of parts) out.push(n); buf = ''; } };
+  const pushText = () => { if (buf) { const parts = (opts && opts.plain) || !AUTO_MATH || REAL_TEX ? [{ t: 'text', v: buf }] : smartSplit(buf); if (parts.some(x => x.t === 'math')) wordsOf(buf, parts); for (const n of parts) out.push(n); buf = ''; } };
   while (i < s.length) {
     const c = s[i];
     if (c === '\\' && s[i + 1] === '$') { buf += '$'; i += 2; continue; }
     if (c === '$' && s[i + 1] === '$') { // $$ … $$ (LaTeX-style) is displayed math
       const k = s.indexOf('$$', i + 2);
-      if (k > i + 2 && s.slice(i + 2, k).trim()) { pushText(); out.push({ t: 'dmath', v: wordsToTex(s.slice(i + 2, k).trim()), src: s.slice(i + 2, k).trim() }); i = k + 2; continue; }
+      if (k > i + 2 && s.slice(i + 2, k).trim()) { pushText(); out.push({ t: 'dmath', v: mathSrc(s.slice(i + 2, k).trim()), src: s.slice(i + 2, k).trim() }); i = k + 2; continue; }
     }
     if (c === '$') {
       let j = s.indexOf('$', i + 1);
@@ -5755,7 +5758,7 @@ function parseInline(s, opts) {
         pushText();
         const inner = s.slice(i + 1, j);
         const display = /^\s/.test(inner) && /\s$/.test(inner) && inner.trim().length > 0;
-        out.push({ t: display ? 'dmath' : 'math', v: wordsToTex(inner.trim()), src: inner.trim() }); // $…$ may hold the words you typed (words mode)
+        out.push({ t: display ? 'dmath' : 'math', v: mathSrc(inner.trim()), src: inner.trim() }); // $…$ may hold the words you typed (words mode)
         i = j + 1; continue;
       }
     }
@@ -5939,7 +5942,7 @@ function pdfRectsFor(ps, s, e) {
   return rects.map(r => [+r[0].toFixed(1), +r[1].toFixed(1), +r[2].toFixed(1), +r[3].toFixed(1), r[4]]);
 }
 
-const API = { scriptTex, isTexLike, setAutoMath, TY, typstToTex, texToTypst, tyErrTex, tidyTex, slashFrac, isPureLatex, collectInline, inlText, parseInline, smartSplit, rewritePhrases, wordsToTex, lettersOf, buildTexStream, locate, texSpanFor, wrapRange, paragraphEnd, generate, parseEmbedded, mathToLatex, parseNote, noteToLatex, noteToHtml, buildPdfStream, pdfRectsFor, PREAMBLE_BLOCK };
+const API = { scriptTex, isTexLike, setAutoMath, setRealTex, TY, typstToTex, texToTypst, tyErrTex, tidyTex, slashFrac, isPureLatex, collectInline, inlText, parseInline, smartSplit, rewritePhrases, wordsToTex, lettersOf, buildTexStream, locate, texSpanFor, wrapRange, paragraphEnd, generate, parseEmbedded, mathToLatex, parseNote, noteToLatex, noteToHtml, buildPdfStream, pdfRectsFor, PREAMBLE_BLOCK };
 if (typeof module !== 'undefined' && module.exports) module.exports = API; else root.AnnCore = API;
 })(typeof window !== 'undefined' ? window : globalThis);</script>
 <script>(function () {
@@ -6415,6 +6418,7 @@ function refHtml(id) {
 }
 const ctxHtml = { ref: refHtml };
 function textHtml(src) { return C.noteToHtml(src || '', km, ctxHtml); }
+function claudeHtml(src) { C.setRealTex(true); try { return textHtml(src); } finally { C.setRealTex(false); } } // Claude's own words: its LaTeX is shown as written
 function inlineHtml(src) { return textHtml(src).replace(/^<p>([\s\S]*)<\/p>$/, '$1'); }
 function mathBlockTex(src) {
   if (String(src || '').startsWith(C.TY)) { // an equation typed in Typst (one line per row)
@@ -6570,7 +6574,7 @@ function viewHtml(b) {
         '<div class="bb">' + (b.text ? textHtml(b.text) : '<span class="ph">' + (b.kind === 'proof' ? 'Write the proof…' : b.kind === 'sol' ? 'Write your solution…' : b.kind === 'ask' ? 'Your question…' : b.kind === 'fix' ? 'What was wrong, and the fix…' : 'Write the statement…') + '</span>') + (b.kind === 'proof' ? '<span class="qed">∎</span>' : '') + '</div>';
       const ans = b.marks && b.marks.ask && b.marks.ask.note;
       if (b.kind === 'ask' && ans) h += '<div class="bb" style="border-top:1px dashed var(--line)"><b style="font:600 12px var(--f-ui);color:var(--k-ex)">Answer</b> ' + textHtml(ans) + '</div>';
-      const cai = b.kind === 'ask' && b.marks && b.marks.ask && b.marks.ask.ai; if (cai) h += '<div class="bb" style="border-top:1px dashed var(--line)"><b style="font:600 12px var(--f-ui);color:var(--accent)">✦ Claude</b> ' + textHtml(cai) + '</div>';
+      const cai = b.kind === 'ask' && b.marks && b.marks.ask && b.marks.ask.ai; if (cai) h += '<div class="bb" style="border-top:1px dashed var(--line)"><b style="font:600 12px var(--f-ui);color:var(--accent)">✦ Claude</b> ' + claudeHtml(cai) + '</div>';
       return h + '</div>';
     }
     case 'code': return '<div class="codeb"><div class="lang">' + esc(b.lang || 'text') + ' <button class="lnk muted" data-copycode="1">Copy</button></div><pre><code>' + (b.text ? codeHtml(b.text, b.lang) : '<span class="ph">Code…</span>') + '</code></pre></div>';
@@ -7450,7 +7454,7 @@ function renderSide() {
       const snip = x.inline || plain(x.b.title ? x.b.title + ': ' + (x.b.text || '') : x.b.text || (state.nums[x.b.id] || {}).label || '');
       const key = x.key || x.k;
       return '<div class="mi' + (x.m.done ? ' done' : '') + '" data-mb="' + x.b.id + '" data-mk="' + esc(key) + '" data-inline="' + (x.key ? 1 : 0) + '"><input type="checkbox" data-mdone="1"' + (x.m.done ? ' checked' : '') + ' aria-label="Done" title="Done"><div class="mt"><span class="mk m-' + x.k + '" style="cursor:default">' + MARKS[x.k].icon + ' ' + esc(MARKS[x.k].label) + '</span> <span class="hint">' + esc((state.nums[x.b.id] || {}).label || '') + '</span><div class="snip">' + inlineHtml(snip.slice(0, 160) || '—') + '</div>' +
-        '<textarea data-mnote="1" placeholder="' + (x.k === 'ask' ? 'Answer (from your teacher)…' : 'Note…') + '">' + esc(x.m.note || '') + '</textarea>' + (() => { const ak = x.b.id + '|' + key; const live = ak in MAI_LIVE; return '<div class="maians view' + (live ? ' ph' : '') + '" data-maians="' + esc(ak) + '"' + (live || x.m.ai ? '' : ' hidden') + '>' + (live ? esc(MAI_LIVE[ak] || 'Claude is thinking…') : x.m.ai ? '<b class="maih">✦ Claude</b> ' + textHtml(x.m.ai) : '') + '</div>'; })() + '<div class="qrow"><button class="lnk" data-mjump="1">Show in notes</button>' + (x.k === 'ask' || x.k === 'check' || x.k === 'error' ? '<button class="lnk" data-mai="1">✦ Ask Claude</button>' : '') + (!x.key && !x.box ? '<button class="lnk muted" data-mrm="1">Remove mark</button>' : '') + '</div></div></div>';
+        '<textarea data-mnote="1" placeholder="' + (x.k === 'ask' ? 'Answer (from your teacher)…' : 'Note…') + '">' + esc(x.m.note || '') + '</textarea>' + (() => { const ak = x.b.id + '|' + key; const live = ak in MAI_LIVE; return '<div class="maians view' + (live ? ' ph' : '') + '" data-maians="' + esc(ak) + '"' + (live || x.m.ai ? '' : ' hidden') + '>' + (live ? esc(MAI_LIVE[ak] || 'Claude is thinking…') : x.m.ai ? '<b class="maih">✦ Claude</b> ' + claudeHtml(x.m.ai) : '') + '</div>'; })() + '<div class="qrow"><button class="lnk" data-mjump="1">Show in notes</button>' + (x.k === 'ask' || x.k === 'check' || x.k === 'error' ? '<button class="lnk" data-mai="1">✦ Ask Claude</button>' : '') + (!x.key && !x.box ? '<button class="lnk muted" data-mrm="1">Remove mark</button>' : '') + '</div></div></div>';
     }).join('') + '</div>' : '<div class="empty">Nothing here. Select a block and press <b>⚑ Mark</b> (' + (isMac ? '⌘' : 'Ctrl') + '⇧K) to add a to-do, double-check, question for your teacher, “try it myself”, important, or possible error. Writing <code>??like this??</code> also makes a question.</div>';
     host.innerHTML = h;
   }
@@ -7692,7 +7696,7 @@ const freshCmts = new Set(); let cmtAskOnce = false;
 const SAMPLE_ERRS = new Set(['Couldn’t reach Claude.', 'Claude wasn’t allowed to answer in this view.', 'Too many requests — try again in a moment.']);
 // a reply still being written: render what is there, minus an unfinished trailing $…$ (it would show as raw LaTeX, then jump)
 function openMathCut(t) { t = String(t || ''); const ds = []; for (let i = 0; i < t.length; i++) { if (t[i] === '\\') { i++; continue; } if (t[i] === '$') ds.push(i); } return (ds.length % 2 ? t.slice(0, ds[ds.length - 1]) : t).replace(/\s+$/, ''); }
-function streamHtml(t) { return textHtml(openMathCut(t) + ' …'); }
+function streamHtml(t) { return claudeHtml(openMathCut(t) + ' …'); }
 function repErr(r) { return r.err || (r.who === 'claude' && SAMPLE_ERRS.has(String(r.text || '').trim()) ? r.text : ''); }
 function toClaudeDefault() { return lsGet('nb.toClaude') === '1'; }
 function cmtCard(b, c) {
@@ -7702,14 +7706,14 @@ function cmtCard(b, c) {
     return '<div class="rep' + (r.who === 'claude' ? ' claude' : '') + (er === rk ? ' editing' : '') + '" data-rk="' + rk + '"' + (r.id ? ' data-rid="' + r.id + '"' : '') + '><div class="who">' + (r.who === 'claude' ? '✦ Claude' : 'You') + (r.edited ? '<span class="redited"> · edited</span>' : '') +
       (!live && !r.pending && er !== rk ? '<span class="ract"><button class="lnk muted" data-c="redit" data-rk="' + rk + '">Edit</button><button class="lnk muted" data-c="rdel" data-rk="' + rk + '">Delete</button></span>' : '') + '</div>' +
       (er === rk ? '<textarea data-repedit="1" rows="2">' + esc(cmtDrafts['r:' + c.id + ':' + rk] != null ? cmtDrafts['r:' + c.id + ':' + rk] : (r.text || '')) + '</textarea><div class="cbtns"><button class="btn" data-c="rcancel" data-rk="' + rk + '">Cancel</button><button class="btn go" data-c="rsave" data-rk="' + rk + '">Save</button></div>'
-        : '<div class="rb">' + (r.pending ? (r.text ? streamHtml(r.text) : '<span class="ph">Thinking…</span>') : repErr(r) ? (r.err && r.text ? textHtml(r.text) : '') + '<div class="rerr">' + esc(repErr(r)) + (b.pdf ? '' : ' <button class="lnk" data-c="retry" data-rk="' + rk + '">Retry</button>') + '</div>' : textHtml(r.text)) + '</div>') + '</div>'; }).join('');
+        : '<div class="rb">' + (r.pending ? (r.text ? streamHtml(r.text) : '<span class="ph">Thinking…</span>') : repErr(r) ? (r.err && r.text ? (r.who === 'claude' ? claudeHtml : textHtml)(r.text) : '') + '<div class="rerr">' + esc(repErr(r)) + (b.pdf ? '' : ' <button class="lnk" data-c="retry" data-rk="' + rk + '">Retry</button>') + '</div>' : (r.who === 'claude' ? claudeHtml : textHtml)(r.text)) + '</div>') + '</div>'; }).join('');
   const tick = '<label class="tocl" title="Claude replies in this thread"><input type="checkbox" data-ctoc' + tc + '><span>✦ Send to Claude</span></label>';
   const fb = c.from && !b.pdf ? c.from : null;
   return '<div class="cmt' + (c.who === 'claude' ? ' ai-c' : '') + (fb ? ' fromblk' : '') + (c.resolved ? ' resolved' : '') + (editing ? ' active' : '') + '" data-cb="' + b.id + '" data-cid="' + c.id + '"' + (fb ? ' style="--fk:' + fromColor(fb) + '"' : '') + '>' +
     (fb ? '<div class="cfrom" title="This comment was a ' + esc(fromName(fb)) + ' block — ↩ Block puts it back"><i></i><b>' + esc(fromName(fb, true)) + '</b></div>' : '') +
     (c.quote ? '<div class="cq">' + inlineHtml(c.quote) + '</div>' : c.region ? '<div class="cq">▭ ' + esc(b.ink && b.ink.src ? 'area on ' + b.ink.src : 'area of the drawing') + '</div>' : '') +
     (editing ? '<textarea data-ctext="1" rows="2" placeholder="Comment… ($math$ works · mention the book or #book and Claude reads it)">' + esc(cmtDrafts['e:' + c.id] != null ? cmtDrafts['e:' + c.id] : (c.text || '')) + '</textarea><div class="ced">' + tick + '<div class="cbtns"><button class="btn" data-c="cancel">Cancel</button><button class="btn go" data-c="save">' + ((b.pdf ? !c.text : freshCmts.has(c.id)) ? 'Comment' : 'Save') + '</button></div></div>' + (reps ? '<div class="cthr">' + reps + '</div>' : '')
-      : '<div class="cthr">' + (c.who === 'claude' ? '<div class="who cw">✦ Claude</div>' : '') + (c.text ? '<div class="cb">' + textHtml(c.text) + '</div>' : '') + reps + '</div>' +
+      : '<div class="cthr">' + (c.who === 'claude' ? '<div class="who cw">✦ Claude</div>' : '') + (c.text ? '<div class="cb">' + (c.who === 'claude' ? claudeHtml : textHtml)(c.text) + '</div>' : '') + reps + '</div>' +
         '<div class="creply' + (cmtDrafts[c.id] ? ' has' : '') + '"><textarea data-creply="1" rows="1" placeholder="Reply…">' + esc(cmtDrafts[c.id] || '') + '</textarea><div class="cr2">' + tick + '<span class="grow"></span><button class="btn go" data-c="reply" title="Reply (Enter)">Reply</button></div></div>' +
         '<div class="cr"><span class="cdate" title="' + esc(fmtDate(c.created)) + '">' + esc(fmtShort(c.created)) + '</span><span class="grow"></span>' + ((c.hl || []).length ? '<button class="lnk muted" data-c="keephl" title="Keep highlights: keep only the parts you highlighted in this thread and remove the rest">✂ Keep</button>' : '') + (fb ? '<button class="lnk muted" data-c="toblock" title="Put it back in the notes as a ' + esc(fromName(fb)) + ' block">↩ Block</button>' : '') + '<button class="lnk muted" data-c="edit" title="Edit">Edit</button>' + (b.pdf ? '' : '<button class="lnk muted" data-c="del" title="Delete this comment and its replies">Delete</button>') + '<button class="lnk muted" data-c="resolve" title="' + (c.resolved ? 'Reopen' : 'Resolve') + '">' + (c.resolved ? 'Reopen' : 'Resolve') + '</button></div>') + '</div>';
 }
@@ -13485,7 +13489,7 @@ const CHAT_STYLE = 'She keeps only the lines worth keeping, so write only such l
   + 'About 50–120 words, unless she asks for a derivation, practice problems, a review list or a summary; for a summary give "- " bullets of statements and ⟺ chains.';
 // a streaming answer: render the math as it arrives, leaving out a formula that hasn't closed yet (no raw LaTeX run-on, no jump at the end)
 function chatLive(t) { t = String(t || ''); const dd = (t.match(/(?<!\\)\$\$/g) || []).length; if (dd % 2) t = t.slice(0, t.lastIndexOf('$$')); const dl = (t.match(/(?<!\\)\$/g) || []).length; if (dl % 2) t = t.slice(0, t.lastIndexOf('$')); const o = t.lastIndexOf('\\['); if (o > t.lastIndexOf('\\]')) t = t.slice(0, o); const o2 = t.lastIndexOf('\\('); if (o2 > t.lastIndexOf('\\)')) t = t.slice(0, o2);
-  return textHtml(typeof normClaude === 'function' ? normClaude(t) : t).replace(/(<\/p>)?$/, m => '<span class="mcaret">▍</span>' + m); }
+  return claudeHtml(typeof normClaude === 'function' ? normClaude(t) : t).replace(/(<\/p>)?$/, m => '<span class="mcaret">▍</span>' + m); }
 // a chat answer → note blocks: displayed equations become math blocks, the rest text (lists stay "- " lines)
 function chatBlocks(text, extra) {
   const out = []; let cur = []; const flush = () => { const t = cur.join('\n').replace(/^\s+|\s+$/g, ''); if (t) out.push(Object.assign({ type: 'p', text: autoLink(t) }, extra || {})); cur = []; };
@@ -14599,7 +14603,7 @@ const Ann = {
     this.save(); Panel.boxLabel(b); this.renderCmts(); if (!this.cmtsShown() && !document.querySelector('.annpop.pcpop[data-abox="' + id + '"]')) this.showPop(id);
     const cur = () => (this.rid === rid && this.data && this.data.box.find(x => x.id === id)) || null;
     let fin = false, lt = 0, tm = 0;
-    const paint = () => { tm = 0; if (fin) return; lt = performance.now(); document.querySelectorAll('.pcmt .rep[data-rid="' + rep.id + '"] .rb').forEach(x => { x.innerHTML = textHtml(rep.text || '…'); }); markLongCmts(); };
+    const paint = () => { tm = 0; if (fin) return; lt = performance.now(); document.querySelectorAll('.pcmt .rep[data-rid="' + rep.id + '"] .rb').forEach(x => { x.innerHTML = claudeHtml(rep.text || '…'); }); markLongCmts(); };
     const live = t => { if (fin) return; rep.text = t; if (!tm) tm = setTimeout(paint, Math.max(0, 220 - (performance.now() - lt))); };
     let out;
     try {
@@ -15122,7 +15126,7 @@ const Panel = {
     this.loadChat();
     const msgs = this.chat || []; const rid = this.reader && this.reader.r && this.reader.r.id; const busy = msgs.some(x => x.live);
     const boxLink = (x) => x.box && x.rid === rid ? '<button class="lnk boxlink" data-gobox="' + esc(x.box) + '">↗ show the box on the page</button>' : '';
-    host.innerHTML = '<div class="chat"><div class="msgs" id="msgs">' + (msgs.length ? msgs.map((x, k) => '<div class="msg ' + x.role + (x.err ? ' err' : '') + '" data-mk="' + k + '">' + (x.role === 'user' ? (/\$/.test(x.text) ? '<div class="view">' + textHtml(x.text) + '</div>' : esc(x.text).replace(/\n/g, '<br>')) + boxLink(x) : '<div class="view">' + (x.live ? chatLive(x.text) : textHtml(typeof normClaude === 'function' && !x.err ? normClaude(x.text) : x.text)) + '</div>' + (x.live ? '' : x.err ? '<div class="mrow"><button class="lnk" data-cm="retry" data-k="' + k + '">↻ Retry</button></div>' : '<div class="mrow"><button class="lnk" data-cm="ins" data-k="' + k + '" title="Insert after the block you asked from">Insert into notes</button><button class="lnk muted" data-cm="aside" data-k="' + k + '">as aside</button><button class="lnk muted" data-cm="cmt" data-k="' + k + '" title="Attach the answer as a comment on the block you asked from">as comment</button><button class="lnk muted" data-cm="copy" data-k="' + k + '">Copy</button></div>')) + '</div>').join('') :
+    host.innerHTML = '<div class="chat"><div class="msgs" id="msgs">' + (msgs.length ? msgs.map((x, k) => '<div class="msg ' + x.role + (x.err ? ' err' : '') + '" data-mk="' + k + '">' + (x.role === 'user' ? (/\$/.test(x.text) ? '<div class="view">' + textHtml(x.text) + '</div>' : esc(x.text).replace(/\n/g, '<br>')) + boxLink(x) : '<div class="view">' + (x.live ? chatLive(x.text) : claudeHtml(typeof normClaude === 'function' && !x.err ? normClaude(x.text) : x.text)) + '</div>' + (x.live ? '' : x.err ? '<div class="mrow"><button class="lnk" data-cm="retry" data-k="' + k + '">↻ Retry</button></div>' : '<div class="mrow"><button class="lnk" data-cm="ins" data-k="' + k + '" title="Insert after the block you asked from">Insert into notes</button><button class="lnk muted" data-cm="aside" data-k="' + k + '">as aside</button><button class="lnk muted" data-cm="cmt" data-k="' + k + '" title="Attach the answer as a comment on the block you asked from">as comment</button><button class="lnk muted" data-cm="copy" data-k="' + k + '">Copy</button></div>')) + '</div>').join('') :
       '<p class="hint">Ask anything about this course. Claude sees these notes' + (this.reader ? ', the reading page you have open,' : '') + ' and the block you’re on. (It can’t search the web from here.)' + (host.id === 'rchat' ? ' To ask about one part of the page, use ▭ Box in the reader’s toolbar and drag around it.' : '') + '</p><div class="chips">' + ['Explain the main idea of this lecture', 'What should I review before the exam?', 'Give me 3 practice problems on this', 'How does this connect to earlier material?'].map(q => '<button data-q="' + esc(q) + '">' + esc(q) + '</button>').join('') + '</div>') + '</div>' +
       '<div class="cin"><textarea id="chatIn" rows="2" placeholder="Ask about these notes or readings…" title="Name the slides, the book or a page (e.g. “p. 114”) to have Claude read more of them"></textarea><div class="row"><span class="hint">↵ send · ⇧↵ new line</span><span class="grow"></span>' + (msgs.length && !busy ? '<button class="lnk muted" id="chatClear">Clear</button>' : '') + (busy ? '<button class="btn" id="chatStop" title="Stop the answer">■ Stop</button>' : '<button class="btn go" id="chatSend">Ask</button>') + '</div></div></div>';
     const ti = $('chatIn'); if (ti) { ti.value = this.draft || ''; if (dr && dr.h) ti.style.height = dr.h; if (dr && dr.f) { ti.focus({ preventScroll: true }); try { ti.setSelectionRange(dr.a, dr.b); } catch (e) {} } }
